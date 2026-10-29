@@ -2,3 +2,18 @@
 __pycache__/
 *.log
 .DS_Store
+
+# Private wallet server data - never upload
+auth_secret.key
+wallet_auth.db
+
+# Local backups and development files
+*.backup
+*.backup_*
+*.bak
+__pycache__/
+*.pyc
+venv/
+.venv/
+build/
+dist/

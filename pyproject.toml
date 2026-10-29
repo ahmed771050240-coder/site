@@ -1,0 +1,12 @@
+[project]
+name = "sultan-wallet"
+version = "1.0.0"
+description = "SULTAN WALLET"
+requires-python = ">=3.10"
+dependencies = ["flet==1.0.5"]
+
+[tool.flet]
+org = "org.sultan"
+product = "SULTAN WALLET"
+company = "SULTAN WALLET"
+copyright = "Copyright 2026 SULTAN WALLET"
