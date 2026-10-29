@@ -44,7 +44,17 @@ def main(page: ft.Page):
         )
 
         def show_message(message):
-            page.open(ft.SnackBar(content=ft.Text(message)))
+            page.show_dialog(
+                ft.AlertDialog(
+                    content=ft.Text(message),
+                    actions=[
+                        ft.TextButton(
+                            "حسنًا",
+                            on_click=lambda e: page.pop_dialog()
+                        )
+                    ],
+                )
+            )
 
         page.add(
             ft.Container(
