@@ -1,31 +1,36 @@
 import flet as ft
+import requests
+
+API_URL = "https://sultan-wallet-api.onrender.com"
+
+
+def api_post(endpoint, data, token=None):
+    headers = {}
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    try:
+        response = requests.post(
+            f"{API_URL}{endpoint}",
+            json=data,
+            headers=headers,
+            timeout=25,
+        )
+        try:
+            result = response.json()
+        except ValueError:
+            result = {}
+        return response.status_code, result
+    except requests.RequestException:
+        return 0, {"detail": "تعذر الاتصال بالخادم. تحقق من الإنترنت وحاول مجدداً."}
 
 def main(page: ft.Page):
     page.title = "Sultan Wallet"
     page.theme_mode = ft.ThemeMode.DARK
     page.padding = 0
     page.bgcolor = "#0D0D11"
-    
-    # ------------------ 1. نظام الحماية بالبصمة / PIN ------------------
-    def check_pin(e):
-        if pin_input.value == "1234":
-            page.navigation_bar.visible = True
-            show_dashboard()
-        else:
-            pin_input.error_text = "رمز PIN غير صحيح"
-            page.update()
 
-    pin_input = ft.TextField(
-        label="أدخل رمز PIN السري",
-        password=True,
-        can_reveal_password=True,
-        text_align=ft.TextAlign.CENTER,
-        width=260,
-        border_color="#FFD700",
-        focused_border_color="#D4AF37",
-        border_radius=15,
-        color="#FFFFFF"
-    )
+    session_token = None
+    current_user = None
 
     def show_login_options(e=None):
         page.controls.clear()
@@ -42,6 +47,121 @@ def main(page: ft.Page):
             border_color="#FFD700",
             width=300,
         )
+
+        def show_register_screen(e=None):
+            page.controls.clear()
+            reg_phone = ft.TextField(
+                label="رقم الهاتف",
+                keyboard_type=ft.KeyboardType.PHONE,
+                width=300,
+            )
+            reg_password = ft.TextField(
+                label="كلمة المرور",
+                password=True,
+                can_reveal_password=True,
+                width=300,
+            )
+            confirm_password = ft.TextField(
+                label="تأكيد كلمة المرور",
+                password=True,
+                can_reveal_password=True,
+                width=300,
+            )
+
+            def submit_registration(e):
+                number = (reg_phone.value or "").strip()
+                secret = reg_password.value or ""
+                confirm = confirm_password.value or ""
+
+                if not number or not secret or not confirm:
+                    show_message("أكمل جميع البيانات.")
+                    return
+                if len(number) < 7 or len(number) > 20:
+                    show_message("رقم الهاتف يجب أن يكون بين 7 و20 خانة.")
+                    return
+                if len(secret) < 8:
+                    show_message("كلمة المرور يجب أن تكون 8 خانات على الأقل.")
+                    return
+                if secret != confirm:
+                    show_message("كلمتا المرور غير متطابقتين.")
+                    return
+
+                status, result = api_post("/register", {
+                    "phone": number,
+                    "password": secret
+                })
+                if status in (200, 201):
+                    show_message(
+                        "تم إنشاء الحساب. رقم الهاتف غير موثق بعد؛ "
+                        "يمكنك تسجيل الدخول، وسنضيف توثيق واتساب لاحقاً."
+                    )
+                else:
+                    show_message(result.get("detail", "تعذر إنشاء الحساب."))
+
+            page.add(
+                ft.Container(
+                    content=ft.Column(
+                        [
+                            ft.Text(
+                                "إنشاء حساب جديد",
+                                size=24,
+                                weight=ft.FontWeight.BOLD,
+                                color="#FFD700",
+                            ),
+                            reg_phone,
+                            reg_password,
+                            confirm_password,
+                            ft.Button(
+                                "إنشاء الحساب",
+                                width=300,
+                                on_click=submit_registration,
+                            ),
+                            ft.TextButton(
+                                "العودة إلى تسجيل الدخول",
+                                on_click=show_login_options,
+                            ),
+                        ],
+                        horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                        alignment=ft.MainAxisAlignment.CENTER,
+                        spacing=15,
+                        scroll=ft.ScrollMode.AUTO,
+                    ),
+                    alignment=ft.Alignment.CENTER,
+                    expand=True,
+                    padding=20,
+                )
+            )
+            page.update()
+
+        def login_user(e):
+            nonlocal session_token, current_user
+            number = (phone.value or "").strip()
+            secret = password.value or ""
+            if not number or not secret:
+                show_message("أدخل رقم الهاتف وكلمة المرور.")
+                return
+            status, result = api_post("/login", {
+                "phone": number, "password": secret
+            })
+            if status == 200 and result.get("access_token"):
+                token = result["access_token"]
+                try:
+                    r = requests.get(
+                        f"{API_URL}/me",
+                        headers={"Authorization": f"Bearer {token}"},
+                        timeout=25
+                    )
+                    if r.status_code == 200:
+                        session_token = token
+                        current_user = r.json()
+                        page.navigation_bar.visible = True
+                        show_dashboard()
+                    else:
+                        show_message("تعذر تحميل بيانات الحساب.")
+                except requests.RequestException:
+                    show_message("تعذر الاتصال بالخادم.")
+            else:
+                show_message(result.get("detail", "فشل تسجيل الدخول."))
 
         def show_message(message):
             page.show_dialog(
@@ -70,16 +190,12 @@ def main(page: ft.Page):
                             "دخول",
                             width=300,
                             style=ft.ButtonStyle(bgcolor="#FFD700", color="#0D0D11"),
-                            on_click=lambda e: show_message(
-                                "لم يتم ربط تسجيل الدخول بالخادم بعد؛ لم تُرسل بياناتك."
-                            ),
+                            on_click=login_user,
                         ),
-                        ft.Button(
+                        ft.Text("ليس لديك حساب بالفعل؟", color="#FFFFFF"),
+                        ft.TextButton(
                             "إنشاء حساب جديد",
-                            width=300,
-                            on_click=lambda e: show_message(
-                                "إنشاء الحساب يحتاج ربط قاعدة بيانات وخادم آمن."
-                            ),
+                            on_click=show_register_screen,
                         ),
                         ft.Button(
                             "نسيت كلمة المرور؟",
@@ -91,17 +207,7 @@ def main(page: ft.Page):
                         ft.Button(
                             "المساعدة عبر واتساب",
                             width=300,
-                            on_click=lambda e: page.launch_url(
-                                "https://wa.me/967779599066"
-                            ),
-                        ),
-                        ft.TextButton(
-                            "العودة إلى شاشة PIN",
-                            on_click=lambda e: (
-                                page.controls.clear(),
-                                page.add(lock_screen),
-                                page.update()
-                            ),
+                            action=ft.OpenUrl("https://wa.me/967779599066"),
                         ),
                     ],
                     alignment=ft.MainAxisAlignment.CENTER,
@@ -116,34 +222,6 @@ def main(page: ft.Page):
         )
         page.update()
 
-    lock_screen = ft.Container(
-        content=ft.Column(
-            [
-                ft.Icon(ft.Icons.LOCK, size=80, color="#FFD700"),
-                ft.Text("SULTAN WALLET", size=24, weight=ft.FontWeight.BOLD, color="#FFD700"),
-                ft.Text("محفظة سلطان زمانه - حماية فائقة", size=14, color="#AAAAAA"),
-                ft.Divider(height=20, color=ft.Colors.TRANSPARENT),
-                pin_input,
-                ft.Button(
-                    content=ft.Row([ft.Icon(ft.Icons.FINGERPRINT), ft.Text("فتح بالبصمة / الدخول")]),
-                    style=ft.ButtonStyle(
-                        color="#0D0D11",
-                        bgcolor="#FFD700",
-                        shape=ft.RoundedRectangleBorder(radius=15)
-                    ),
-                    on_click=show_login_options,
-                    width=260,
-                    height=50
-                )
-            ],
-            alignment=ft.MainAxisAlignment.CENTER,
-            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-            spacing=15
-        ),
-        alignment=ft.Alignment.CENTER,
-        expand=True
-    )
-
     # ------------------ 2. لوحة التحكم والإحصائيات والواجهة الملكية ------------------
     def get_dashboard():
         return ft.ListView(
@@ -153,7 +231,7 @@ def main(page: ft.Page):
                 ft.Row(
                     [
                         ft.Column([
-                            ft.Text("أهلاً بك يا سلطان! 🦅", size=20, weight=ft.FontWeight.BOLD, color="#FFFFFF"),
+                            ft.Text("مرحباً بك 👋 " + (current_user.get("phone", "مستخدم") if current_user else "مستخدم"), size=18, weight=ft.FontWeight.BOLD, color="#FFFFFF"),
                             ft.Text("Sultan Wallet - الحساب الملكي", size=12, color="#FFD700")
                         ]),
                         ft.CircleAvatar(
@@ -173,11 +251,11 @@ def main(page: ft.Page):
                             ft.Text("الرصيد الكلي المتاح", color="#DDDDDD", size=14),
                             ft.Icon(ft.Icons.ACCOUNT_BALANCE_WALLET, color="#FFD700")
                         ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
-                        ft.Text("$128,450.00", size=32, weight=ft.FontWeight.BOLD, color="#FFFFFF"),
+                        ft.Text("الحساب غير مفعّل مالياً", size=22, weight=ft.FontWeight.BOLD, color="#FFFFFF"),
                         ft.Divider(height=10, color="#333333"),
                         ft.Row([
-                            ft.Row([ft.Icon(ft.Icons.ARROW_UPWARD, color="#00FF7F", size=16), ft.Text("الدخل: $45,000", color="#00FF7F", size=12)]),
-                            ft.Row([ft.Icon(ft.Icons.ARROW_DOWNWARD, color="#FF4500", size=16), ft.Text("المصروف: $12,300", color="#FF4500", size=12)])
+                            ft.Row([ft.Icon(ft.Icons.ARROW_UPWARD, color="#00FF7F", size=16), ft.Text("الدخل: لا توجد بيانات", color="#00FF7F", size=12)]),
+                            ft.Row([ft.Icon(ft.Icons.ARROW_DOWNWARD, color="#FF4500", size=16), ft.Text("المصروف: لا توجد بيانات", color="#FF4500", size=12)])
                         ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN)
                     ]),
                     gradient=ft.LinearGradient(
@@ -195,13 +273,13 @@ def main(page: ft.Page):
                 ft.Text("إحصائيات المصروفات والنمو 📊", size=16, weight=ft.FontWeight.BOLD, color="#FFFFFF"),
                 ft.Container(
                     content=ft.Column([
-                        ft.Row([ft.Text("استهلاك الميزانية الشهرية", color="#AAAAAA"), ft.Text("65%", color="#FFD700")]),
-                        ft.ProgressBar(value=0.65, color="#FFD700", bgcolor="#333333", height=10),
+                        ft.Row([ft.Text("استهلاك الميزانية الشهرية", color="#AAAAAA"), ft.Text("--", color="#FFD700")]),
+                        ft.ProgressBar(value=0.0, color="#FFD700", bgcolor="#333333", height=10),
                         ft.Divider(height=15, color=ft.Colors.TRANSPARENT),
                         ft.Row([
-                            ft.Column([ft.Text("الأرباح", size=12, color="#888888"), ft.Text("+18.5%", color="#00FF7F", weight=ft.FontWeight.BOLD)]),
-                            ft.Column([ft.Text("الاستثمار", size=12, color="#888888"), ft.Text("$34,000", color="#FFD700", weight=ft.FontWeight.BOLD)]),
-                            ft.Column([ft.Text("الأمان", size=12, color="#888888"), ft.Text("100%", color="#00E5FF", weight=ft.FontWeight.BOLD)])
+                            ft.Column([ft.Text("الأرباح", size=12, color="#888888"), ft.Text("غير متاح", color="#00FF7F", weight=ft.FontWeight.BOLD)]),
+                            ft.Column([ft.Text("الاستثمار", size=12, color="#888888"), ft.Text("غير متاح", color="#FFD700", weight=ft.FontWeight.BOLD)]),
+                            ft.Column([ft.Text("الأمان", size=12, color="#888888"), ft.Text("غير مفعل", color="#00E5FF", weight=ft.FontWeight.BOLD)])
                         ], alignment=ft.MainAxisAlignment.SPACE_AROUND)
                     ]),
                     padding=15,
@@ -213,9 +291,9 @@ def main(page: ft.Page):
                 # أزرار العمليات السريعة
                 ft.Text("الخدمات السريعة ⚡", size=16, weight=ft.FontWeight.BOLD, color="#FFFFFF"),
                 ft.Row([
-                    ft.Button("إرسال أموال 💸", style=ft.ButtonStyle(bgcolor="#FFD700", color="#000000")),
-                    ft.Button("تعبئة رصيد 💳", style=ft.ButtonStyle(bgcolor="#2D2D3A", color="#FFFFFF")),
-                    ft.Button("تقرير PDF 📄", style=ft.ButtonStyle(bgcolor="#2D2D3A", color="#FFD700"))
+                    ft.Button("إرسال أموال 💸", style=ft.ButtonStyle(bgcolor="#FFD700", color="#000000"), on_click=lambda e: show_message("التحويل غير مفعّل حالياً.")),
+                    ft.Button("تعبئة رصيد 💳", style=ft.ButtonStyle(bgcolor="#2D2D3A", color="#FFFFFF"), on_click=lambda e: show_message("الإيداع غير مفعّل حالياً.")),
+                    ft.Button("تقرير PDF 📄", style=ft.ButtonStyle(bgcolor="#2D2D3A", color="#FFD700"), on_click=lambda e: show_message("التقارير غير متاحة حالياً."))
                 ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN)
             ]
         )
@@ -238,6 +316,6 @@ def main(page: ft.Page):
         ]
     )
 
-    page.add(lock_screen)
+    show_login_options()
 
 ft.run(main)

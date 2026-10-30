@@ -17,3 +17,7 @@ venv/
 .venv/
 build/
 dist/
+
+auth_server.py
+auth_secret.key
+wallet_auth.db
