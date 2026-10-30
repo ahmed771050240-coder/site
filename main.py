@@ -259,8 +259,8 @@ def main(page: ft.Page):
                         ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN)
                     ]),
                     gradient=ft.LinearGradient(
-                        begin=ft.alignment.top_left,
-                        end=ft.alignment.bottom_right,
+                        begin=ft.Alignment(-1, -1),
+                        end=ft.Alignment(1, 1),
                         colors=["#1E1E26", "#2D2D3A", "#141419"]
                     ),
                     padding=20,
