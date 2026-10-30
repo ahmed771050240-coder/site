@@ -9,40 +9,71 @@ import secrets
 import sqlite3
 from pathlib import Path
 
+import psycopg
+from psycopg.rows import dict_row
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel, Field
 
 BASE = Path(__file__).resolve().parent
 DB = BASE / "wallet_auth.db"
+DATABASE_URL = os.getenv("DATABASE_URL")
 SECRET_FILE = BASE / "auth_secret.key"
 
-if not SECRET_FILE.exists():
-    fd = os.open(str(SECRET_FILE), os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-    with os.fdopen(fd, "wb") as f:
-        f.write(secrets.token_bytes(32))
+if os.getenv("AUTH_SECRET"):
+    SECRET = os.environ["AUTH_SECRET"].encode("utf-8")
+    if len(SECRET) < 32:
+        raise RuntimeError("AUTH_SECRET must contain at least 32 characters")
+else:
+    if not SECRET_FILE.exists():
+        fd = os.open(str(SECRET_FILE), os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        with os.fdopen(fd, "wb") as f:
+            f.write(secrets.token_bytes(32))
+    SECRET = SECRET_FILE.read_bytes()
 
-SECRET = SECRET_FILE.read_bytes()
-app = FastAPI(title="SULTAN WALLET Account API", version="1.0")
+app = FastAPI(title="SULTAN WALLET Account API", version="1.1")
 bearer = HTTPBearer()
 
 
 def connect_db():
+    if DATABASE_URL:
+        return psycopg.connect(DATABASE_URL, row_factory=dict_row)
     con = sqlite3.connect(DB, timeout=15)
     con.row_factory = sqlite3.Row
     return con
 
 
-with connect_db() as con:
-    con.execute("""
-        CREATE TABLE IF NOT EXISTS users (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            phone TEXT NOT NULL UNIQUE,
-            password_hash TEXT NOT NULL,
-            created_at INTEGER NOT NULL,
-            phone_verified INTEGER NOT NULL DEFAULT 0
-        )
-    """)
+def execute(con, sql, params=()):
+    if DATABASE_URL:
+        sql = sql.replace("?", "%s")
+    return con.execute(sql, params)
+
+
+def init_db():
+    with connect_db() as con:
+        if DATABASE_URL:
+            con.execute("""
+                CREATE TABLE IF NOT EXISTS users (
+                    id BIGSERIAL PRIMARY KEY,
+                    phone TEXT NOT NULL UNIQUE,
+                    password_hash TEXT NOT NULL,
+                    created_at BIGINT NOT NULL,
+                    phone_verified BOOLEAN NOT NULL DEFAULT FALSE
+                )
+            """)
+        else:
+            con.execute("""
+                CREATE TABLE IF NOT EXISTS users (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    phone TEXT NOT NULL UNIQUE,
+                    password_hash TEXT NOT NULL,
+                    created_at INTEGER NOT NULL,
+                    phone_verified INTEGER NOT NULL DEFAULT 0
+                )
+            """)
+
+
+init_db()
 
 
 def normalize_phone(phone):
@@ -60,7 +91,9 @@ def hash_password(password, salt=None):
 def verify_password(password, stored):
     try:
         salt_hex, digest_hex = stored.split("$", 1)
-        actual = hash_password(password, bytes.fromhex(salt_hex)).split("$", 1)[1]
+        actual = hash_password(
+            password, bytes.fromhex(salt_hex)
+        ).split("$", 1)[1]
         return hmac.compare_digest(actual, digest_hex)
     except (ValueError, TypeError):
         return False
@@ -73,7 +106,9 @@ def make_token(user_id):
     }
     raw = json.dumps(payload, separators=(",", ":")).encode()
     encoded = base64.urlsafe_b64encode(raw).rstrip(b"=").decode()
-    signature = hmac.new(SECRET, encoded.encode(), hashlib.sha256).hexdigest()
+    signature = hmac.new(
+        SECRET, encoded.encode(), hashlib.sha256
+    ).hexdigest()
     return encoded + "." + signature
 
 
@@ -93,7 +128,10 @@ def read_token(token):
             raise ValueError()
         return int(payload["sub"])
     except Exception:
-        raise HTTPException(status_code=401, detail="جلسة الدخول غير صالحة أو انتهت")
+        raise HTTPException(
+            status_code=401,
+            detail="جلسة الدخول غير صالحة أو انتهت"
+        )
 
 
 class RegisterRequest(BaseModel):
@@ -108,7 +146,11 @@ class LoginRequest(BaseModel):
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "service": "SULTAN WALLET Account API"}
+    return {
+        "status": "ok",
+        "service": "SULTAN WALLET Account API",
+        "database": "postgresql" if DATABASE_URL else "sqlite"
+    }
 
 
 @app.post("/register", status_code=201)
@@ -117,15 +159,26 @@ def register(data: RegisterRequest):
     if not re.fullmatch(r"\+?[0-9]{7,15}", phone):
         raise HTTPException(status_code=400, detail="رقم الهاتف غير صالح")
 
-    with connect_db() as con:
-        try:
-            cur = con.execute(
-                "INSERT INTO users(phone, password_hash, created_at) VALUES (?, ?, ?)",
-                (phone, hash_password(data.password), int(time.time()))
-            )
-            user_id = cur.lastrowid
-        except sqlite3.IntegrityError:
-            raise HTTPException(status_code=409, detail="هذا الرقم مسجل مسبقًا")
+    try:
+        with connect_db() as con:
+            if DATABASE_URL:
+                cur = execute(
+                    con,
+                    """INSERT INTO users(phone, password_hash, created_at)
+                       VALUES (?, ?, ?) RETURNING id""",
+                    (phone, hash_password(data.password), int(time.time()))
+                )
+                user_id = cur.fetchone()["id"]
+            else:
+                cur = execute(
+                    con,
+                    """INSERT INTO users(phone, password_hash, created_at)
+                       VALUES (?, ?, ?)""",
+                    (phone, hash_password(data.password), int(time.time()))
+                )
+                user_id = cur.lastrowid
+    except (sqlite3.IntegrityError, psycopg.errors.UniqueViolation):
+        raise HTTPException(status_code=409, detail="هذا الرقم مسجل مسبقًا")
 
     return {
         "message": "تم إنشاء الحساب",
@@ -139,7 +192,8 @@ def register(data: RegisterRequest):
 def login(data: LoginRequest):
     phone = normalize_phone(data.phone)
     with connect_db() as con:
-        user = con.execute(
+        user = execute(
+            con,
             "SELECT id, password_hash, phone_verified FROM users WHERE phone = ?",
             (phone,)
         ).fetchone()
@@ -160,7 +214,8 @@ def login(data: LoginRequest):
 def me(credentials: HTTPAuthorizationCredentials = Depends(bearer)):
     user_id = read_token(credentials.credentials)
     with connect_db() as con:
-        user = con.execute(
+        user = execute(
+            con,
             "SELECT id, phone, created_at, phone_verified FROM users WHERE id = ?",
             (user_id,)
         ).fetchone()
