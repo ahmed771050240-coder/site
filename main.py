@@ -265,7 +265,7 @@ def main(page: ft.Page):
                     ),
                     padding=20,
                     border_radius=20,
-                    border=ft.border.all(1, "#FFD700")
+                    border=ft.Border.all(1, "#FFD700")
                 ),
                 ft.Divider(height=25, color=ft.Colors.TRANSPARENT),
 
