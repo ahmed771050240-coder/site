@@ -21,3 +21,11 @@ dist/
 auth_server.py
 auth_secret.key
 wallet_auth.db
+
+# Local backups and generated files
+*.before_*
+*.egg-info/
+.venv-ubuntu/
+sultan_error.txt
+flet_screen_test.py
+Makefile.pre.backup

@@ -357,6 +357,21 @@ def main(page: ft.Page):
                 ),
                 ft.Divider(height=20, color=ft.Colors.TRANSPARENT),
 
+                # صورة SULTAN WALLET الترويجية
+                ft.Container(
+                    content=ft.Image(
+                        src="sultan_wallet_promo.webp",
+                        width=340,
+                        height=170,
+                        fit=ft.BoxFit.CONTAIN,
+                    ),
+                    padding=8,
+                    bgcolor="#181820",
+                    border_radius=18,
+                    border=ft.Border.all(1, "#FFD700"),
+                ),
+                ft.Divider(height=15, color=ft.Colors.TRANSPARENT),
+
                 # بطاقة الرصيد الفخمة
                 ft.Container(
                     content=ft.Column([

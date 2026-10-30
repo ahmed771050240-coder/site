@@ -5,7 +5,9 @@ on:
   push:
     paths:
       - 'main.py'
+      - 'wallet_engine.py'
       - 'pyproject.toml'
+      - 'assets/**'
       - '.github/workflows/build-apk.yml'
 
 permissions:
@@ -28,16 +30,7 @@ jobs:
           build-number: ${{ github.run_number }}
           extra-args: >-
             --arch arm64-v8a
-            --exclude auth_server.py
-            --exclude wallet_auth.db
-            --exclude auth_secret.key
-            --exclude login_patch.py
-            --exclude main.py.backup_login
-            --exclude main.py.backup_icons
-            --exclude main.py.backup_colors
-            --exclude main.py.backup_buttons
-            --exclude main.py.backup_alignment
-            --exclude main.py.backup_nav_fix
+            --exclude auth_server.py wallet_auth.db auth_secret.key login_patch.py
 
       - name: Upload APK
         uses: actions/upload-artifact@v7
