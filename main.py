@@ -23,6 +23,23 @@ def api_post(endpoint, data, token=None):
     except requests.RequestException:
         return 0, {"detail": "تعذر الاتصال بالخادم. تحقق من الإنترنت وحاول مجدداً."}
 
+
+def api_get(endpoint, token):
+    try:
+        response = requests.get(
+            f"{API_URL}{endpoint}",
+            headers={"Authorization": f"Bearer {token}"},
+            timeout=25,
+        )
+        try:
+            result = response.json()
+        except ValueError:
+            result = {}
+        return response.status_code, result
+    except requests.RequestException:
+        return 0, {"detail": "تعذر الاتصال بالخادم."}
+
+
 def main(page: ft.Page):
     page.title = "Sultan Wallet"
     page.theme_mode = ft.ThemeMode.DARK
@@ -31,6 +48,77 @@ def main(page: ft.Page):
 
     session_token = None
     current_user = None
+
+    def show_message(message):
+        page.show_dialog(
+            ft.AlertDialog(
+                content=ft.Text(message),
+                actions=[
+                    ft.TextButton(
+                        "حسنًا",
+                        on_click=lambda e: page.pop_dialog()
+                    )
+                ],
+            )
+        )
+
+
+    def brand_header():
+        return ft.Container(
+            content=ft.Column(
+                [
+                    ft.Icon(ft.Icons.ACCOUNT_BALANCE_WALLET,
+                            size=58, color="#FFD700"),
+                    ft.Text("SULTAN WALLET", size=27,
+                            weight=ft.FontWeight.BOLD, color="#FFD700"),
+                    ft.Text("محفظتك الرقمية... تحكم بثروتك بثقة",
+                            size=15, color="#FFFFFF",
+                            text_align=ft.TextAlign.CENTER),
+                    ft.Divider(color="#66521A", height=12),
+                    ft.Text("إدارة الحسابات • التحويلات • الخدمات المالية",
+                            size=12, color="#D6C28A",
+                            text_align=ft.TextAlign.CENTER),
+                    ft.Text("الأمان والوضوح وسهولة الاستخدام في مكان واحد",
+                            size=12, color="#AAAAAA",
+                            text_align=ft.TextAlign.CENTER),
+                ],
+                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                spacing=9,
+            ),
+            width=420,
+            padding=20,
+            bgcolor="#181820",
+            border=ft.Border.all(1, "#B99536"),
+            border_radius=22,
+        )
+
+    def contact_panel():
+        return ft.Container(
+            content=ft.Column(
+                [
+                    ft.Text("نحن هنا لمساعدتك", size=15,
+                            weight=ft.FontWeight.BOLD, color="#FFD700"),
+                    ft.Text("الدعم الرسمي للمحفظة",
+                            size=12, color="#CCCCCC"),
+                    ft.Text("ahmed771050240@gmail.com",
+                            size=13, color="#FFFFFF"),
+                    ft.Button(
+                        "مراسلة الدعم عبر البريد الإلكتروني",
+                        width=300,
+                        style=ft.ButtonStyle(
+                            bgcolor="#2A2A32", color="#FFD700"),
+                        action=ft.OpenUrl(
+                            "mailto:ahmed771050240@gmail.com"),
+                    ),
+                ],
+                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                spacing=7,
+            ),
+            padding=14,
+            bgcolor="#181820",
+            border=ft.Border.all(1, "#66521A"),
+            border_radius=16,
+        )
 
     def show_login_options(e=None):
         page.controls.clear()
@@ -102,6 +190,7 @@ def main(page: ft.Page):
                 ft.Container(
                     content=ft.Column(
                         [
+                            brand_header(),
                             ft.Text(
                                 "إنشاء حساب جديد",
                                 size=24,
@@ -163,24 +252,15 @@ def main(page: ft.Page):
             else:
                 show_message(result.get("detail", "فشل تسجيل الدخول."))
 
-        def show_message(message):
-            page.show_dialog(
-                ft.AlertDialog(
-                    content=ft.Text(message),
-                    actions=[
-                        ft.TextButton(
-                            "حسنًا",
-                            on_click=lambda e: page.pop_dialog()
-                        )
-                    ],
-                )
-            )
-
         page.add(
             ft.Container(
                 content=ft.Column(
                     [
-                        ft.Icon(ft.Icons.LOCK, size=65, color="#FFD700"),
+                        brand_header(),
+                        ft.Text("مرحباً بعودتك", size=19,
+                                weight=ft.FontWeight.BOLD,
+                                color="#FFFFFF"),
+                        ft.Icon(ft.Icons.LOCK, size=38, color="#FFD700"),
                         ft.Text("SULTAN WALLET", size=24,
                                 weight=ft.FontWeight.BOLD, color="#FFD700"),
                         ft.Text("تسجيل الدخول", size=18, color="#FFFFFF"),
@@ -204,6 +284,7 @@ def main(page: ft.Page):
                                 "استعادة كلمة المرور تحتاج خدمة تحقق آمنة."
                             ),
                         ),
+                        contact_panel(),
                         ft.Button(
                             "المساعدة عبر واتساب",
                             width=300,
@@ -224,7 +305,23 @@ def main(page: ft.Page):
 
     # ------------------ 2. لوحة التحكم والإحصائيات والواجهة الملكية ------------------
     def get_dashboard():
-        return ft.ListView(
+        wallet_data = {}
+        wallet_error = False
+        if session_token:
+            wallet_status, wallet_data = api_get("/wallet", session_token)
+            wallet_error = wallet_status != 200
+        transactions_data = {}
+        transactions_error = False
+        if session_token:
+            tx_status, transactions_data = api_get("/wallet/transactions?limit=10", session_token)
+            transactions_error = tx_status != 200
+        transactions = transactions_data.get("transactions", []) if isinstance(transactions_data, dict) else []
+        accounts = wallet_data.get("accounts", []) if isinstance(wallet_data, dict) else []
+        wallet_summary = " | ".join(
+            str(a.get("currency", "")) + ": " + str(a.get("balance", "0.00"))
+            for a in accounts
+        ) or ("تعذر جلب الأرصدة" if wallet_error else "لا توجد أرصدة داخلية بعد")
+        transaction_text = "\n".join([str(t.get("type", "عملية")) + " | " + str(t.get("amount", "0.00")) + " " + str(t.get("currency", "")) + " | " + str(t.get("status", "")) for t in transactions]) or "لا توجد عمليات مسجلة حتى الآن" if not transactions_error else "تعذر تحميل العمليات"; return ft.ListView(
             padding=20,
             controls=[
                 # الهيدر الترحيبي
@@ -244,6 +341,22 @@ def main(page: ft.Page):
                 ),
                 ft.Divider(height=25, color=ft.Colors.TRANSPARENT),
 
+                # بيانات الحساب الحقيقية
+                ft.Container(
+                    content=ft.Column([
+                        ft.Text("بيانات الحساب 👤", size=16, weight=ft.FontWeight.BOLD, color="#FFD700"),
+                        ft.Text("رقم الحساب: " + str(current_user.get("id", "غير متاح") if current_user else "غير متاح"), color="#FFFFFF"),
+                        ft.Text("رقم الهاتف: " + str(current_user.get("phone", "غير متاح") if current_user else "غير متاح"), color="#FFFFFF"),
+                        ft.Text("توثيق الهاتف: " + ("موثّق" if current_user and current_user.get("phone_verified") else "غير موثّق"), color="#FFFFFF"),
+                        ft.Text("تاريخ إنشاء الحساب: " + str(current_user.get("created_at", "غير متاح") if current_user else "غير متاح"), color="#FFFFFF"),
+                    ], spacing=10),
+                    padding=18,
+                    bgcolor="#181820",
+                    border_radius=15,
+                    border=ft.Border.all(1, "#FFD700")
+                ),
+                ft.Divider(height=20, color=ft.Colors.TRANSPARENT),
+
                 # بطاقة الرصيد الفخمة
                 ft.Container(
                     content=ft.Column([
@@ -251,7 +364,9 @@ def main(page: ft.Page):
                             ft.Text("الرصيد الكلي المتاح", color="#DDDDDD", size=14),
                             ft.Icon(ft.Icons.ACCOUNT_BALANCE_WALLET, color="#FFD700")
                         ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
-                        ft.Text("الحساب غير مفعّل مالياً", size=22, weight=ft.FontWeight.BOLD, color="#FFFFFF"),
+                        ft.Text("أرصدة المحفظة الداخلية", size=18, weight=ft.FontWeight.BOLD, color="#FFFFFF"),
+                        ft.Text(wallet_summary, size=16, color="#FFD700"),
+                        ft.Text("الأموال الحقيقية والإيداع والسحب غير مفعّلة حالياً", size=12, color="#DDDDDD"),
                         ft.Divider(height=10, color="#333333"),
                         ft.Row([
                             ft.Row([ft.Icon(ft.Icons.ARROW_UPWARD, color="#00FF7F", size=16), ft.Text("الدخل: لا توجد بيانات", color="#00FF7F", size=12)]),
@@ -270,6 +385,8 @@ def main(page: ft.Page):
                 ft.Divider(height=25, color=ft.Colors.TRANSPARENT),
 
                 # 3. قسم الإحصائيات والرسوم البيانية التفاعلية
+                ft.Text("آخر العمليات المالية 📋", size=17, weight=ft.FontWeight.BOLD, color="#FFD700"),
+                ft.Text(transaction_text, color="#FFFFFF", size=13),
                 ft.Text("إحصائيات المصروفات والنمو 📊", size=16, weight=ft.FontWeight.BOLD, color="#FFFFFF"),
                 ft.Container(
                     content=ft.Column([
@@ -303,11 +420,61 @@ def main(page: ft.Page):
         page.add(get_dashboard())
         page.update()
 
-    # شريط التنقل السفلي الفخم
+    def handle_navigation(e):
+        index = e.control.selected_index
+        page.controls.clear()
+
+        if index == 0:
+            page.add(get_dashboard())
+        else:
+            titles = {
+                1: "الإحصائيات",
+                2: "الأمان",
+                3: "الإعدادات",
+            }
+            descriptions = {
+                1: "قسم الإحصائيات قيد التجهيز.",
+                2: "إعدادات الأمان قيد التجهيز.",
+                3: "إعدادات الحساب قيد التجهيز.",
+            }
+            page.add(
+                ft.Container(
+                    content=ft.Column(
+                        [
+                            ft.Icon(
+                                [ft.Icons.BAR_CHART, ft.Icons.SECURITY, ft.Icons.SETTINGS][index - 1],
+                                size=55,
+                                color="#FFD700",
+                            ),
+                            ft.Text(
+                                titles[index],
+                                size=24,
+                                weight=ft.FontWeight.BOLD,
+                                color="#FFD700",
+                            ),
+                            ft.Text(descriptions[index], color="#FFFFFF"),
+                            ft.Button(
+                                "العودة للرئيسية",
+                                on_click=lambda e: show_dashboard(),
+                            ),
+                        ],
+                        horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                        alignment=ft.MainAxisAlignment.CENTER,
+                        spacing=20,
+                    ),
+                    alignment=ft.Alignment.CENTER,
+                    expand=True,
+                )
+            )
+
+        page.update()
+
+    # شريط التنقل السفلي
     page.navigation_bar = ft.NavigationBar(
         visible=False,
         bgcolor="#141419",
         selected_index=0,
+        on_change=handle_navigation,
         destinations=[
             ft.NavigationBarDestination(icon=ft.Icons.HOME, label="الرئيسية"),
             ft.NavigationBarDestination(icon=ft.Icons.BAR_CHART, label="الإحصائيات"),
