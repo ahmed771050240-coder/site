@@ -226,6 +226,11 @@ def me(credentials: HTTPAuthorizationCredentials = Depends(bearer)):
     return dict(user)
 
 
+
+# محرك المحفظة والخدمات المالية الداخلية
+from wallet_engine import register_wallet_routes
+register_wallet_routes(app, connect_db, execute, read_token, bearer)
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="127.0.0.1", port=8000)
