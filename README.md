@@ -1,14 +1,21 @@
-# SULTAN WALLET — UI refresh 1.1.0
+# Website
 
-This package contains the updated Flet Android app source.
+This website is built using [Docusaurus 2](https://v2.docusaurus.io/).
 
-## Changes
-- Replaced the previous wallet dashboard presentation with the dark emerald SULTAN WALLET interface.
-- Preserved the existing login, registration, API endpoints, account details, and live wallet/transaction retrieval.
-- Kept transfer, deposit, withdrawal, and report actions clearly marked as unavailable until their secure backend flows are implemented.
-- APK workflow remains configured for arm64-v8a and excludes server-side secrets and files.
+## Installation
 
-## Build
-The GitHub Actions workflow `.github/workflows/build-apk.yml` builds the Android APK when run manually or when relevant source files are pushed.
+```console
+npm i
+```
 
-Do not include `wallet_auth.db`, `auth_secret.key`, or other server secrets in the Android package.
+## Local Development
+
+```console
+npm run start
+```
+
+This command starts a local development server and open up a browser window. Most changes are reflected live without having to restart the server.
+
+## PRs
+
+PR into the `main` branch and on merge the github pages build will be taken care of.
