@@ -1,0 +1,31 @@
+.buildozer/
+__pycache__/
+*.log
+.DS_Store
+
+# Private wallet server data - never upload
+auth_secret.key
+wallet_auth.db
+
+# Local backups and development files
+*.backup
+*.backup_*
+*.bak
+__pycache__/
+*.pyc
+venv/
+.venv/
+build/
+dist/
+
+auth_server.py
+auth_secret.key
+wallet_auth.db
+
+# Local backups and generated files
+*.before_*
+*.egg-info/
+.venv-ubuntu/
+sultan_error.txt
+flet_screen_test.py
+Makefile.pre.backup

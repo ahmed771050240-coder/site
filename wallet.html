@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sultan Wallet - محفظة أبو سلطان</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@300;400;500;700;800;900&display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <style>
+    * { font-family: 'Tajawal', sans-serif; }
+    .perspective-1000 { perspective: 1000px; }
+    .preserve-3d { transform-style: preserve-3d; }
+    .backface-hidden { backface-visibility: hidden; }
+    .scrollbar-hide::-webkit-scrollbar { display: none; }
+    .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+  </style>
+</head>
+<body class="bg-[#050A17] text-slate-100 min-h-screen flex justify-center items-center p-0 sm:p-6 selection:bg-emerald-500/30">
+
+  <div id="root" class="w-full flex justify-center"></div>
+
+  <script>
+    const { useState, useEffect } = React;
+
+    const transactionsData = [
+      { id: 1, name: "متجر نون", sub: "تسوق إلكتروني • بطاقة الذهب", amount: -249, time: "منذ 12 دقيقة", type: "out", category: "تسوق" },
+      { id: 2, name: "راتب شهري", sub: "تحويل وارد • STC Pay", amount: 12450, time: "اليوم 09:30ص", type: "in", category: "دخل" },
+      { id: 3, name: "محطة الدريس", sub: "وقود • بطاقة التيتانيوم", amount: -180.5, time: "أمس 08:15م", type: "out", category: "مواصلات" },
+      { id: 4, name: "مطعم البيك", sub: "مطاعم • Apple Pay", amount: -86, time: "أمس 02:40م", type: "out", category: "طعام" },
+      { id: 5, name: "أحمد الغامدي", sub: "تحويل سريع • محفظة", amount: -500, time: "13 يناير", type: "out", category: "تحويل" },
+      { id: 6, name: "قسط تمارا", sub: "تقسيط • تلقائي", amount: -320, time: "12 يناير", type: "out", category: "تسوق" }
+    ];
+
+    const cardsData = [
+      { id: "dark", name: "التيتانيوم السوداء", number: "••••  ••••  ••••  4582", holder: "ABU SULTAN", expiry: "08/28", bg: "from-[#0F172A] via-[#1E293B] to-[#0F172A]" },
+      { id: "gold", name: "الذهبية المميزة", number: "••••  ••••  ••••  9021", holder: "ABU SULTAN", expiry: "11/27", bg: "from-[#CA8A04] via-[#EAB308] to-[#A16207]" },
+      { id: "teal", name: "زمرد بلس", number: "••••  ••••  ••••  1134", holder: "ABU SULTAN", expiry: "03/29", bg: "from-[#0F766E] via-[#14B8A6] to-[#0D5B53]" }
+    ];
+
+    function App() {
+      const [showBalance, setShowBalance] = useState(true);
+      const [activeCardIndex, setActiveCardIndex] = useState(0);
+      const [currentTab, setCurrentTab] = useState("home");
+      const [filterType, setFilterType] = useState("all");
+      const [toastMessage, setToastMessage] = useState(null);
+
+      useEffect(() => {
+        if (!toastMessage) return;
+        const timer = setTimeout(() => setToastMessage(null), 2400);
+        return () => clearTimeout(timer);
+      }, [toastMessage]);
+
+      const filteredTransactions = transactionsData.filter(tx => {
+        if (filterType === "all") return true;
+        return tx.type === filterType;
+      });
+
+      const totalSpent = transactionsData.filter(tx => tx.type === "out").reduce((acc, curr) => acc + Math.abs(curr.amount), 0);
+
+      return (
+        React.createElement("div", { className: "relative w-full max-w-[410px] bg-[#0B1220]/90 backdrop-blur-2xl rounded-[44px] sm:rounded-[52px] border border-white/[0.08] shadow-2xl overflow-hidden flex flex-col min-h-[calc(100vh-24px)] sm:min-h-[860px] sm:h-[860px]" },
+          
+          React.createElement("div", { className: "absolute top-0 left-1/2 -translate-x-1/2 w-[110px] h-[30px] bg-black rounded-b-[16px] z-50 flex items-center justify-center gap-1.5" },
+            React.createElement("div", { className: "w-12 h-1.5 bg-white/10 rounded-full" }),
+            React.createElement("div", { className: "w-2 h-2 rounded-full bg-[#0a0a0a] border border-white/10" })
+          ),
+
+          React.createElement("div", { className: "flex-1 overflow-y-auto overflow-x-hidden scrollbar-hide relative pt-10" },
+            
+            React.createElement("header", { className: "sticky top-0 z-30 backdrop-blur-xl bg-[#0B1220]/70 border-b border-white/[0.05] px-6 py-4 flex items-center justify-between" },
+              React.createElement("div", { className: "flex items-center gap-3" },
+                React.createElement("div", { className: "relative" },
+                  React.createElement("div", { className: "w-11 h-11 rounded-full bg-gradient-to-br from-emerald-400 to-teal-600 flex items-center justify-center text-white font-black text-[14px] ring-2 ring-white/10 shadow-lg" }, "أس"),
+                  React.createElement("div", { className: "absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-emerald-400 rounded-full border-2 border-[#0B1220]" })
+                ),
+                React.createElement("div", { className: "text-right" },
+                  React.createElement("div", { className: "flex items-center gap-1.5" },
+                    React.createElement("h1", { className: "text-[16px] font-bold text-white tracking-tight" }, "أهلاً، أبو سلطان"),
+                    React.createElement("span", { className: "text-amber-300" }, "✨")
+                  ),
+                  React.createElement("p", { className: "text-[12px] text-slate-400 font-medium -mt-0.5" }, "يومك مبارك وموفق")
+                )
+              )
+            ),
+
+            currentTab === "home" && React.createElement("div", { className: "px-5 pb-28 pt-2 space-y-6" },
+              
+              React.createElement("div", { className: "relative group" },
+                React.createElement("div", { className: "relative rounded-[32px] bg-gradient-to-br from-[#0F172A] via-[#162032] to-[#1E293B] border border-white/[0.08] p-6 text-right overflow-hidden shadow-2xl" },
+                  React.createElement("div", { className: "flex items-center justify-between mb-4" },
+                    React.createElement("button", { onClick: () => setShowBalance(!showBalance), className: "text-slate-300 text-xs bg-white/10 px-3 py-1 rounded-full" }, showBalance ? "إخفاء" : "إظهار"),
+                    React.createElement("span", { className: "text-[11px] font-bold text-slate-400" }, "الرصيد الكلي")
+                  ),
+                  React.createElement("div", { className: "mb-5" },
+                    React.createElement("div", { className: "flex items-baseline justify-end gap-2" },
+                      React.createElement("span", { className: "text-[14px] font-medium text-slate-400" }, "ر.س"),
+                      React.createElement("h2", { className: "text-[36px] font-black text-white" }, showBalance ? "47,892.50" : "••••••••")
+                    )
+                  )
+                )
+              ),
+
+              React.createElement("div", { className: "text-right" },
+                React.createElement("h3", { className: "text-[14px] font-bold text-white mb-3" }, "إجراءات سريعة"),
+                React.createElement("div", { className: "grid grid-cols-4 gap-3 text-center" },
+                  [
+                    { id: "send", label: "تحويل", icon: "💸" },
+                    { id: "charge", label: "شحن", icon: "⚡" },
+                    { id: "withdraw", label: "سحب", icon: "🏧" },
+                    { id: "statement", label: "كشف", icon: "📄" }
+                  ].map(action =>
+                    React.createElement("button", {
+                      key: action.id,
+                      onClick: () => setToastMessage(`تم اختيار ${action.label}`),
+                      className: "flex flex-col items-center gap-2 p-3 bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.06] rounded-2xl transition-all"
+                    },
+                      React.createElement("span", { className: "text-xl" }, action.icon),
+                      React.createElement("span", { className: "text-[11px] font-medium text-slate-200" }, action.label)
+                    )
+                  )
+                )
+              ),
+
+              React.createElement("div", { className: "text-right" },
+                React.createElement("h3", { className: "text-[14px] font-bold text-white mb-3" }, "بطاقاتي"),
+                React.createElement("div", { className: "rounded-[28px] bg-gradient-to-br " + cardsData[activeCardIndex].bg + " border border-white/15 p-5 h-[180px] flex flex-col justify-between shadow-xl text-right" },
+                  React.createElement("div", { className: "flex justify-between items-center" },
+                    React.createElement("span", { className: "text-xs font-bold text-white/80" }, cardsData[activeCardIndex].name),
+                    React.createElement("span", { className: "text-xs font-black bg-black/30 px-2.5 py-1 rounded-full text-amber-300" }, "نشطة")
+                  ),
+                  React.createElement("p", { className: "text-[18px] tracking-[0.2em] text-white font-mono" }, cardsData[activeCardIndex].number),
+                  React.createElement("div", { className: "flex justify-between items-end text-xs text-white/80" },
+                    React.createElement("span", {}, cardsData[activeCardIndex].expiry),
+                    React.createElement("span", { className: "font-bold" }, cardsData[activeCardIndex].holder)
+                  )
+                )
+              ),
+
+              React.createElement("div", { className: "bg-[#111C32]/60 border border-white/[0.06] rounded-[28px] p-4 text-right" },
+                React.createElement("h3", { className: "text-[14px] font-bold text-white mb-3" }, "العمليات الأخيرة"),
+                React.createElement("div", { className: "space-y-2" },
+                  filteredTransactions.map(tx =>
+                    React.createElement("div", { key: tx.id, className: "flex items-center justify-between p-2.5 rounded-2xl hover:bg-white/[0.04]" },
+                      React.createElement("div", { className: "text-left" },
+                        React.createElement("p", { className: `text-[13px] font-black ${tx.type === "in" ? "text-emerald-300" : "text-white"}` },
+                          (tx.type === "in" ? "+" : "-") + Math.abs(tx.amount).toLocaleString() + " ر.س"
+                        )
+                      ),
+                      React.createElement("div", { className: "text-right" },
+                        React.createElement("p", { className: "text-[13px] font-bold text-white" }, tx.name),
+                        React.createElement("p", { className: "text-[11px] text-slate-400" }, tx.time)
+                      )
+                    )
+                  )
+                )
+              )
+            )
+          ),
+
+          toastMessage && React.createElement("div", { className: "absolute bottom-[100px] left-1/2 -translate-x-1/2 z-[60] bg-white text-black text-[12px] font-bold px-4 py-2.5 rounded-full shadow-2xl border border-white/20 animate-bounce" },
+            toastMessage
+          ),
+
+          React.createElement("nav", { className: "absolute bottom-0 left-0 right-0 z-40 px-3 pb-3 pt-2 bg-[#0B1220]/90 backdrop-blur-xl border-t border-white/10" },
+            React.createElement("div", { className: "max-w-[380px] mx-auto flex items-center justify-between" },
+              [
+                { id: "home", label: "الرئيسية", icon: "🏠" },
+                { id: "wallet", label: "المحفظة", icon: "💳" },
+                { id: "stats", label: "الإحصائيات", icon: "📊" },
+                { id: "settings", label: "الإعدادات", icon: "⚙️" }
+              ].map(tab => {
+                const isActive = currentTab === tab.id;
+                return React.createElement("button", {
+                  key: tab.id,
+                  onClick: () => setCurrentTab(tab.id),
+                  className: `flex-1 py-2 rounded-2xl flex flex-col items-center gap-1 transition-all ${isActive ? "bg-white text-black font-bold shadow-lg scale-105" : "text-slate-400 hover:text-white"}`
+                },
+                  React.createElement("span", { className: "text-lg" }, tab.icon),
+                  React.createElement("span", { className: "text-[10px]" }, tab.label)
+                );
+              })
+            )
+          )
+
+        )
+      );
+    }
+
+    ReactDOM.render(React.createElement(App), document.getElementById("root"));
+  </script>
+</body>
+</html>
