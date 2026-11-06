@@ -2,13 +2,6 @@ name: Build SULTAN WALLET APK
 
 on:
   workflow_dispatch:
-  push:
-    paths:
-      - 'main.py'
-      - 'wallet_engine.py'
-      - 'pyproject.toml'
-      - 'assets/**'
-      - '.github/workflows/build-apk.yml'
 
 permissions:
   contents: read
@@ -17,10 +10,10 @@ jobs:
   build-apk:
     runs-on: ubuntu-latest
     steps:
-      - name: Download project
+      - name: Checkout
         uses: actions/checkout@v6
 
-      - name: Build Android APK
+      - name: Build APK
         id: build
         uses: flet-dev/flet-build-action@v1
         with:
@@ -30,12 +23,12 @@ jobs:
           build-number: ${{ github.run_number }}
           extra-args: >-
             --arch arm64-v8a
-            --exclude auth_server.py wallet_auth.db auth_secret.key login_patch.py
+            --exclude auth_server.py wallet_engine.py wallet_auth.db auth_secret.key login_patch.py
 
       - name: Upload APK
         uses: actions/upload-artifact@v7
         with:
-          name: SULTAN-WALLET-APK
+          name: SULTAN-WALLET-1.2.5-APK
           path: ${{ steps.build.outputs.archive-path }}
           archive: false
           if-no-files-found: error

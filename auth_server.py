@@ -31,7 +31,7 @@ else:
             f.write(secrets.token_bytes(32))
     SECRET = SECRET_FILE.read_bytes()
 
-app = FastAPI(title="SULTAN WALLET Account API", version="1.1")
+app = FastAPI(title="SULTAN WALLET Account API", version="1.2")
 bearer = HTTPBearer()
 
 
@@ -146,10 +146,19 @@ class LoginRequest(BaseModel):
 
 @app.get("/health")
 def health():
+    """Readiness check: report healthy only when the configured database responds."""
+    database = "postgresql" if DATABASE_URL else "sqlite"
+    try:
+        with connect_db() as con:
+            execute(con, "SELECT 1").fetchone()
+    except Exception:
+        # Do not expose connection strings, credentials, or driver internals.
+        raise HTTPException(status_code=503, detail="قاعدة البيانات غير متاحة")
     return {
         "status": "ok",
         "service": "SULTAN WALLET Account API",
-        "database": "postgresql" if DATABASE_URL else "sqlite"
+        "database": database,
+        "database_connected": True
     }
 
 
