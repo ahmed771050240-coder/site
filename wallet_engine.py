@@ -8,7 +8,7 @@ from fastapi.security import HTTPAuthorizationCredentials
 from pydantic import BaseModel, Field
 
 
-CURRENCIES = ("YER", "SAR", "USD")
+CURRENCIES = ("YER", "SAR", "AED", "USD")
 
 
 class TransferRequest(BaseModel):
@@ -25,7 +25,7 @@ def register_wallet_routes(app, connect_db, execute, read_token, bearer):
         with connect_db() as con:
             execute(con, """
                 CREATE TABLE IF NOT EXISTS wallet_accounts (
-                    user_id INTEGER NOT NULL,
+                    user_id BIGINT NOT NULL,
                     currency TEXT NOT NULL,
                     balance_minor INTEGER NOT NULL DEFAULT 0,
                     status TEXT NOT NULL DEFAULT 'active',
@@ -37,8 +37,8 @@ def register_wallet_routes(app, connect_db, execute, read_token, bearer):
             execute(con, """
                 CREATE TABLE IF NOT EXISTS wallet_transactions (
                     reference TEXT PRIMARY KEY,
-                    sender_user_id INTEGER NOT NULL,
-                    receiver_user_id INTEGER NOT NULL,
+                    sender_user_id BIGINT NOT NULL,
+                    receiver_user_id BIGINT NOT NULL,
                     currency TEXT NOT NULL,
                     amount_minor INTEGER NOT NULL,
                     fee_minor INTEGER NOT NULL DEFAULT 0,
@@ -54,10 +54,21 @@ def register_wallet_routes(app, connect_db, execute, read_token, bearer):
                 CREATE TABLE IF NOT EXISTS wallet_ledger (
                     entry_id TEXT PRIMARY KEY,
                     reference TEXT NOT NULL,
-                    user_id INTEGER NOT NULL,
+                    user_id BIGINT NOT NULL,
                     currency TEXT NOT NULL,
                     direction TEXT NOT NULL,
                     amount_minor INTEGER NOT NULL,
+                    created_at INTEGER NOT NULL
+                )
+            """)
+
+            execute(con, """
+                CREATE TABLE IF NOT EXISTS wallet_audit_log (
+                    audit_id TEXT PRIMARY KEY,
+                    actor_user_id BIGINT NOT NULL,
+                    event_type TEXT NOT NULL,
+                    reference TEXT,
+                    details TEXT NOT NULL,
                     created_at INTEGER NOT NULL
                 )
             """)
@@ -189,7 +200,7 @@ def register_wallet_routes(app, connect_db, execute, read_token, bearer):
             raise HTTPException(status_code=400, detail="العملة غير مدعومة")
 
         amount_minor = parse_amount(data.amount)
-        recipient_phone = re.sub(r"\s+", "", data.recipient_phone)
+        recipient_phone = re.sub(r"[\s()-]", "", data.recipient_phone)
 
         if not re.fullmatch(r"\+?[0-9]{7,15}", recipient_phone):
             raise HTTPException(status_code=400, detail="رقم المستلم غير صالح")
@@ -198,22 +209,20 @@ def register_wallet_routes(app, connect_db, execute, read_token, bearer):
         reference = "SW-" + uuid.uuid4().hex[:20].upper()
 
         with connect_db() as con:
-            previous = execute(
-                con,
-                """SELECT reference, status, amount_minor, currency
-                   FROM wallet_transactions
-                   WHERE sender_user_id = ? AND idempotency_key = ?""",
-                (sender_id, data.idempotency_key)
-            ).fetchone()
-
-            if previous:
-                return {
-                    "message": "هذه العملية سبق تسجيلها",
-                    "reference": previous["reference"],
-                    "status": previous["status"],
-                    "amount": format_amount(previous["amount_minor"]),
-                    "currency": previous["currency"]
-                }
+            # Serialize transfers per sender before checking idempotency.
+            if con.__class__.__module__.startswith("psycopg"):
+                execute(
+                    con,
+                    """SELECT pg_advisory_xact_lock(
+                           hashtextextended(
+                               'sultan-wallet-sender:' || ?::text,
+                               71001
+                           )
+                       )""",
+                    (sender_id,)
+                )
+            else:
+                execute(con, "BEGIN IMMEDIATE")
 
             recipient = execute(
                 con,
@@ -231,6 +240,38 @@ def register_wallet_routes(app, connect_db, execute, read_token, bearer):
                     status_code=400,
                     detail="لا يمكن التحويل إلى حسابك نفسه"
                 )
+
+            previous = execute(
+                con,
+                """SELECT reference, status, amount_minor, currency,
+                          receiver_user_id, description
+                   FROM wallet_transactions
+                   WHERE sender_user_id = ? AND idempotency_key = ?""",
+                (sender_id, data.idempotency_key)
+            ).fetchone()
+
+            if previous:
+                same_request = (
+                    previous["receiver_user_id"] == receiver_id
+                    and previous["amount_minor"] == amount_minor
+                    and previous["currency"] == currency
+                    and (previous["description"] or "") == (data.description or "")
+                )
+
+                if not same_request:
+                    raise HTTPException(
+                        status_code=409,
+                        detail="مفتاح التحويل مستخدم مسبقاً لطلب مختلف"
+                    )
+
+                return {
+                    "message": "هذه العملية سبق تسجيلها",
+                    "reference": previous["reference"],
+                    "status": previous["status"],
+                    "amount": format_amount(previous["amount_minor"]),
+                    "currency": previous["currency"],
+                    "real_money_enabled": False
+                }
 
             create_accounts(con, sender_id)
             create_accounts(con, receiver_id)
@@ -267,13 +308,18 @@ def register_wallet_routes(app, connect_db, execute, read_token, bearer):
                     detail="الرصيد غير كافٍ لإتمام التحويل"
                 )
 
-            execute(
+            credit = execute(
                 con,
                 """UPDATE wallet_accounts
                    SET balance_minor = balance_minor + ?
-                   WHERE user_id = ? AND currency = ?""",
+                   WHERE user_id = ? AND currency = ? AND status = 'active'""",
                 (amount_minor, receiver_id, currency)
             )
+            if credit.rowcount != 1:
+                raise HTTPException(
+                    status_code=500,
+                    detail="تعذر إكمال قيد المستلم؛ تم إلغاء التحويل"
+                )
 
             execute(
                 con,
@@ -311,6 +357,15 @@ def register_wallet_routes(app, connect_db, execute, read_token, bearer):
                     uuid.uuid4().hex, reference, receiver_id,
                     currency, "credit", amount_minor, now
                 )
+            )
+
+            execute(
+                con,
+                """INSERT INTO wallet_audit_log
+                   (audit_id, actor_user_id, event_type, reference, details, created_at)
+                   VALUES (?, ?, ?, ?, ?, ?)""",
+                (uuid.uuid4().hex, sender_id, "internal_transfer_completed",
+                 reference, f"currency={currency};amount_minor={amount_minor};recipient_id={receiver_id}", now)
             )
 
         return {
