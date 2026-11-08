@@ -3,7 +3,6 @@ on:
   push:
     branches: [ main ]
   workflow_dispatch:
-
 jobs:
   build:
     runs-on: ubuntu-22.04
@@ -21,6 +20,8 @@ jobs:
       - name: Build APK
         run: |
           buildozer android debug
+        env:
+          ACCEPT_SDK_LICENSE_AGREEMENT: "True"
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:

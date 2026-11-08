@@ -4,10 +4,13 @@
 # See the end of the file for more details and warnings about common mistakes.
 
 [app]
-android.accept_sdk_license_agreement = True
 android.ndk = 28c
-android.api = 33
+android.accept_sdk_license_agreement = True
+android.build_tools = 33.0.2
 android.minapi = 21
+android.api = 33
+
+
 
 # (str) Title of your application
 title = My Application
