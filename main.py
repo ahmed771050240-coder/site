@@ -313,6 +313,8 @@ def main(page: ft.Page):
     def get_dashboard():
         wallet_status, wallet_data = api_get("/wallet", session_token) if session_token else (0, {})
         tx_status, tx_data = api_get("/wallet/transactions?limit=10", session_token) if session_token else (0, {})
+        fx_status, fx_data = api_get("/market/fx", session_token) if session_token else (0, {})
+        gold_status, gold_data = api_get("/market/gold", session_token) if session_token else (0, {})
         accounts = wallet_data.get("accounts", []) if isinstance(wallet_data, dict) else []
         transactions = tx_data.get("transactions", []) if isinstance(tx_data, dict) else []
         balance_summary = "   •   ".join(
@@ -442,12 +444,33 @@ def main(page: ft.Page):
                     spacing=12,
                     vertical_alignment=ft.CrossAxisAlignment.CENTER,
                 ),
-                section_title("أسعار العملات والذهب", "مصدر السوق"),
+                section_title("أسعار العملات والذهب", "بيانات من مصادر خارجية"),
                 ft.Container(
                     content=ft.Column([
-                        ft.Text("يتم جلب أسعار الصرف من مزود البيانات عند ربط الخادم", color=UI["white"], size=12),
-                        ft.Text("لا تعرض هذه النسخة سعراً تخمينياً أو سعراً غير موثق", color=UI["muted"], size=10),
-                        ft.Text("سعر الذهب يحتاج مفتاح مزود بيانات معتمد في إعدادات الخادم", color="#FBBF24", size=10),
+                        ft.Text(
+                            " • ".join(
+                                f"{code}: {fx_data.get('rates', {}).get(code):,.5f}"
+                                for code in ("SAR", "AED", "YER")
+                                if fx_data.get("rates", {}).get(code) is not None
+                            ) or ("أسعار الصرف غير متاحة حالياً" if fx_status != 200 else "لا توجد أسعار منشورة لهذه العملات"),
+                            color=UI["white"], size=12
+                        ),
+                        ft.Text(
+                            f"المصدر: {fx_data.get('source', 'Frankfurter')} • تاريخ السعر: "
+                            + ", ".join(f"{k} {v}" for k, v in fx_data.get("observations", {}).items() if v),
+                            color=UI["muted"], size=9
+                        ),
+                        ft.Text(
+                            (f"الذهب XAU: {gold_data.get('price'):,.2f} USD / أونصة"
+                             if gold_status == 200 and gold_data.get("price") is not None
+                             else "سعر الذهب غير متاح حالياً"),
+                            color="#FBBF24", size=12, weight=ft.FontWeight.BOLD
+                        ),
+                        ft.Text(
+                            f"مصدر الذهب: {gold_data.get('source', 'XAUS')} • الحالة: {gold_data.get('status', 'غير متاح')} • {gold_data.get('as_of', '')}",
+                            color=UI["muted"], size=9
+                        ),
+                        ft.Text("أسعار الصرف مرجعية يومية، والذهب استرشادي؛ لا تمثل أسعار تنفيذ أو ضمان بيع وشراء.", color=UI["muted"], size=9),
                     ], spacing=7),
                     padding=14, bgcolor=UI["card"], border_radius=14,
                     border=ft.Border.all(1, UI["line"]),
