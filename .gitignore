@@ -1,0 +1,9 @@
+venv/
+.buildozer/
+bin/
+__pycache__/
+*.zip
+*.db
+*.jks
+*.pyc
+main_old.py
