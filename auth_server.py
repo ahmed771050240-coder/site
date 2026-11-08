@@ -231,6 +231,25 @@ def me(credentials: HTTPAuthorizationCredentials = Depends(bearer)):
 from wallet_engine import register_wallet_routes
 register_wallet_routes(app, connect_db, execute, read_token, bearer)
 
+# أسعار الصرف والذهب من مزودي بيانات خارجيين موثقين
+from market_data import get_fx, get_gold
+
+
+@app.get("/market/fx")
+def market_fx():
+    try:
+        return get_fx()
+    except Exception:
+        raise HTTPException(status_code=503, detail="أسعار الصرف غير متاحة مؤقتاً؛ لم يتم عرض أسعار تقديرية")
+
+
+@app.get("/market/gold")
+def market_gold():
+    try:
+        return get_gold()
+    except Exception:
+        raise HTTPException(status_code=503, detail="بيانات الذهب غير متاحة مؤقتاً؛ لم يتم عرض سعر غير موثق")
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="127.0.0.1", port=8000)
