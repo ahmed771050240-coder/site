@@ -411,19 +411,54 @@ def main(page: ft.Page):
                     quick_action(ft.Icons.MONEY, "سحب", "السحب غير مفعّل حالياً."),
                     quick_action(ft.Icons.RECEIPT_LONG, "كشف حساب", "التقارير غير متاحة حالياً."),
                 ], alignment=ft.MainAxisAlignment.SPACE_AROUND),
-                section_title("بطاقاتي", "SULTAN WALLET"),
+                section_title("بطاقاتي متعددة العملات", "اسحب أفقياً"),
+                ft.Row(
+                    [
+                        ft.Container(
+                            content=ft.Column([
+                                ft.Row([
+                                    ft.Text("SULTAN WALLET", color=UI["white"], size=10, weight=ft.FontWeight.BOLD),
+                                    ft.Text(code, color=UI["white"], size=13, weight=ft.FontWeight.BOLD),
+                                ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+                                ft.Text(label, color="#FFFFFFCC", size=12),
+                                ft.Text(
+                                    f"{next((str(a.get('balance', '0.00')) for a in accounts if str(a.get('currency', '')).upper() == code), '0.00')} {code}",
+                                    color=UI["white"], size=19, weight=ft.FontWeight.BOLD
+                                ),
+                                ft.Text("رصيد المحفظة الداخلي", color="#FFFFFF99", size=9),
+                            ], spacing=8),
+                            width=245, height=132, padding=16, border_radius=18,
+                            gradient=ft.LinearGradient(colors=colors),
+                            border=ft.Border.all(1, "#FFFFFF22"),
+                        )
+                        for code, label, colors in [
+                            ("SAR", "الريال السعودي", ["#153B32", "#059669"]),
+                            ("USD", "الدولار الأمريكي", ["#172B49", "#2563EB"]),
+                            ("AED", "الدرهم الإماراتي", ["#4A2C19", "#B7791F"]),
+                            ("YER", "الريال اليمني", ["#3A234B", "#7C3AED"]),
+                        ]
+                    ],
+                    scroll=ft.ScrollMode.AUTO,
+                    spacing=12,
+                    vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                ),
+                section_title("أسعار العملات والذهب", "مصدر السوق"),
                 ft.Container(
                     content=ft.Column([
-                        ft.Row([ft.Text("SULTAN WALLET", color=UI["white"], size=11, weight=ft.FontWeight.BOLD),
-                                ft.Icon(ft.Icons.WIFI, color=UI["white"], size=17)],
-                               alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
-                        ft.Container(height=10),
-                        ft.Text("••••  ••••  ••••  0087", color=UI["white"], size=17, weight=ft.FontWeight.BOLD),
-                        ft.Text("DIGITAL WALLET", color="#FFFFFF99", size=9),
-                    ], spacing=5),
-                    padding=18, height=118, border_radius=18,
-                    gradient=ft.LinearGradient(colors=["#0F172A", UI["green2"]]),
+                        ft.Text("يتم جلب أسعار الصرف من مزود البيانات عند ربط الخادم", color=UI["white"], size=12),
+                        ft.Text("لا تعرض هذه النسخة سعراً تخمينياً أو سعراً غير موثق", color=UI["muted"], size=10),
+                        ft.Text("سعر الذهب يحتاج مفتاح مزود بيانات معتمد في إعدادات الخادم", color="#FBBF24", size=10),
+                    ], spacing=7),
+                    padding=14, bgcolor=UI["card"], border_radius=14,
+                    border=ft.Border.all(1, UI["line"]),
                 ),
+                section_title("الخدمات المميزة"),
+                ft.Row([
+                    quick_action(ft.Icons.PHONE_ANDROID, "شحن التطبيقات", "خدمة الشحن ستُفعّل بعد ربط مزود شحن معتمد."),
+                    quick_action(ft.Icons.SPORTS_ESPORTS, "عملات الألعاب", "شراء عملات الألعاب يتطلب ربط مزود رسمي والتحقق من الطلب."),
+                    quick_action(ft.Icons.PUBLIC, "حوالة دولية", "الحوالات الدولية غير مفعّلة قبل التعاقد مع مزود مرخص."),
+                ], alignment=ft.MainAxisAlignment.SPACE_AROUND),
+                section_title("العمليات الأخيرة", "آخر 10 عمليات"),
                 section_title("العمليات الأخيرة", "آخر 10 عمليات"),
                 ft.Column(tx_controls, spacing=9),
                 ft.Container(height=20),
