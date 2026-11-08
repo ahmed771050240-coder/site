@@ -5,10 +5,6 @@
 
 [app]
 android.ndk = 28c
-android.accept_sdk_license_agreement = True
-android.build_tools = 33.0.2
-android.minapi = 21
-android.api = 33
 
 
 
@@ -495,3 +491,12 @@ warn_on_root = 1
 #        buildozer --profile demo android debug
 #
 #   Environment variable overrides have priority over profile overrides.
+
+# Android SDK configuration
+
+# SULTAN WALLET Android build configuration
+android.api = 33
+android.minapi = 21
+android.accept_sdk_license = True
+android.skip_update = True
+android.build_tools = 33.0.2
