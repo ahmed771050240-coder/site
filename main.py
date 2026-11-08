@@ -313,6 +313,8 @@ def main(page: ft.Page):
     def get_dashboard():
         wallet_status, wallet_data = api_get("/wallet", session_token) if session_token else (0, {})
         tx_status, tx_data = api_get("/wallet/transactions?limit=10", session_token) if session_token else (0, {})
+        fx_status, fx_data = api_get("/market/fx", session_token) if session_token else (0, {})
+        gold_status, gold_data = api_get("/market/gold", session_token) if session_token else (0, {})
         accounts = wallet_data.get("accounts", []) if isinstance(wallet_data, dict) else []
         transactions = tx_data.get("transactions", []) if isinstance(tx_data, dict) else []
         balance_summary = "   •   ".join(
@@ -411,19 +413,75 @@ def main(page: ft.Page):
                     quick_action(ft.Icons.MONEY, "سحب", "السحب غير مفعّل حالياً."),
                     quick_action(ft.Icons.RECEIPT_LONG, "كشف حساب", "التقارير غير متاحة حالياً."),
                 ], alignment=ft.MainAxisAlignment.SPACE_AROUND),
-                section_title("بطاقاتي", "SULTAN WALLET"),
+                section_title("بطاقاتي متعددة العملات", "اسحب أفقياً"),
+                ft.Row(
+                    [
+                        ft.Container(
+                            content=ft.Column([
+                                ft.Row([
+                                    ft.Text("SULTAN WALLET", color=UI["white"], size=10, weight=ft.FontWeight.BOLD),
+                                    ft.Text(code, color=UI["white"], size=13, weight=ft.FontWeight.BOLD),
+                                ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+                                ft.Text(label, color="#FFFFFFCC", size=12),
+                                ft.Text(
+                                    f"{next((str(a.get('balance', '0.00')) for a in accounts if str(a.get('currency', '')).upper() == code), '0.00')} {code}",
+                                    color=UI["white"], size=19, weight=ft.FontWeight.BOLD
+                                ),
+                                ft.Text("رصيد المحفظة الداخلي", color="#FFFFFF99", size=9),
+                            ], spacing=8),
+                            width=245, height=132, padding=16, border_radius=18,
+                            gradient=ft.LinearGradient(colors=colors),
+                            border=ft.Border.all(1, "#FFFFFF22"),
+                        )
+                        for code, label, colors in [
+                            ("SAR", "الريال السعودي", ["#153B32", "#059669"]),
+                            ("USD", "الدولار الأمريكي", ["#172B49", "#2563EB"]),
+                            ("AED", "الدرهم الإماراتي", ["#4A2C19", "#B7791F"]),
+                            ("YER", "الريال اليمني", ["#3A234B", "#7C3AED"]),
+                        ]
+                    ],
+                    scroll=ft.ScrollMode.AUTO,
+                    spacing=12,
+                    vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                ),
+                section_title("أسعار العملات والذهب", "بيانات من مصادر خارجية"),
                 ft.Container(
                     content=ft.Column([
-                        ft.Row([ft.Text("SULTAN WALLET", color=UI["white"], size=11, weight=ft.FontWeight.BOLD),
-                                ft.Icon(ft.Icons.WIFI, color=UI["white"], size=17)],
-                               alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
-                        ft.Container(height=10),
-                        ft.Text("••••  ••••  ••••  0087", color=UI["white"], size=17, weight=ft.FontWeight.BOLD),
-                        ft.Text("DIGITAL WALLET", color="#FFFFFF99", size=9),
-                    ], spacing=5),
-                    padding=18, height=118, border_radius=18,
-                    gradient=ft.LinearGradient(colors=["#0F172A", UI["green2"]]),
+                        ft.Text(
+                            " • ".join(
+                                f"{code}: {fx_data.get('rates', {}).get(code):,.5f}"
+                                for code in ("SAR", "AED", "YER")
+                                if fx_data.get("rates", {}).get(code) is not None
+                            ) or ("أسعار الصرف غير متاحة حالياً" if fx_status != 200 else "لا توجد أسعار منشورة لهذه العملات"),
+                            color=UI["white"], size=12
+                        ),
+                        ft.Text(
+                            f"المصدر: {fx_data.get('source', 'Frankfurter')} • تاريخ السعر: "
+                            + ", ".join(f"{k} {v}" for k, v in fx_data.get("observations", {}).items() if v),
+                            color=UI["muted"], size=9
+                        ),
+                        ft.Text(
+                            (f"الذهب XAU: {gold_data.get('price'):,.2f} USD / أونصة"
+                             if gold_status == 200 and gold_data.get("price") is not None
+                             else "سعر الذهب غير متاح حالياً"),
+                            color="#FBBF24", size=12, weight=ft.FontWeight.BOLD
+                        ),
+                        ft.Text(
+                            f"مصدر الذهب: {gold_data.get('source', 'XAUS')} • الحالة: {gold_data.get('status', 'غير متاح')} • {gold_data.get('as_of', '')}",
+                            color=UI["muted"], size=9
+                        ),
+                        ft.Text("أسعار الصرف مرجعية يومية، والذهب استرشادي؛ لا تمثل أسعار تنفيذ أو ضمان بيع وشراء.", color=UI["muted"], size=9),
+                    ], spacing=7),
+                    padding=14, bgcolor=UI["card"], border_radius=14,
+                    border=ft.Border.all(1, UI["line"]),
                 ),
+                section_title("الخدمات المميزة"),
+                ft.Row([
+                    quick_action(ft.Icons.PHONE_ANDROID, "شحن التطبيقات", "خدمة الشحن ستُفعّل بعد ربط مزود شحن معتمد."),
+                    quick_action(ft.Icons.SPORTS_ESPORTS, "عملات الألعاب", "شراء عملات الألعاب يتطلب ربط مزود رسمي والتحقق من الطلب."),
+                    quick_action(ft.Icons.PUBLIC, "حوالة دولية", "الحوالات الدولية غير مفعّلة قبل التعاقد مع مزود مرخص."),
+                ], alignment=ft.MainAxisAlignment.SPACE_AROUND),
+                section_title("العمليات الأخيرة", "آخر 10 عمليات"),
                 section_title("العمليات الأخيرة", "آخر 10 عمليات"),
                 ft.Column(tx_controls, spacing=9),
                 ft.Container(height=20),
