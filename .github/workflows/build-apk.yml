@@ -72,8 +72,47 @@ jobs:
 
       - name: Configure Buildozer SDK
         run: |
-          sed -i '/^android.sdk_path[[:space:]]*=/d' buildozer.spec
-          echo "android.sdk_path = $ANDROID_HOME" >> buildozer.spec
+          python - <<'PYTHON'
+          import os
+          from pathlib import Path
+
+          p = Path("buildozer.spec")
+          lines = p.read_text().splitlines()
+
+          start = lines.index("[app]")
+          end = next(
+              (i for i in range(start + 1, len(lines))
+               if lines[i].startswith("[") and lines[i].endswith("]")),
+              len(lines)
+          )
+
+          keys = (
+              "android.sdk_path",
+              "android.accept_sdk_license",
+              "android.skip_update",
+              "android.api",
+              "android.minapi",
+              "android.build_tools",
+          )
+
+          section = [
+              line for line in lines[start + 1:end]
+              if not any(line.strip().startswith(k + " =") for k in keys)
+          ]
+
+          settings = [
+              f"android.sdk_path = {os.environ['ANDROID_HOME']}",
+              "android.accept_sdk_license = True",
+              "android.skip_update = True",
+              "android.api = 33",
+              "android.minapi = 21",
+              "android.build_tools = 33.0.2",
+          ]
+
+          lines = lines[:start + 1] + settings + section + lines[end:]
+          p.write_text("\n".join(lines) + "\n")
+          print("Buildozer Android SDK configured successfully.")
+          PYTHON
 
       - name: Build SULTAN WALLET APK
         run: |
