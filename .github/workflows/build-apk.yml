@@ -34,10 +34,7 @@ jobs:
           accept-android-sdk-licenses: true
           log-accepted-android-sdk-licenses: false
           cmdline-tools-version: 12266719
-          packages: |
-            platform-tools
-            platforms;android-33
-            build-tools;33.0.2
+          packages: 'platform-tools platforms;android-33 build-tools;33.0.2'
 
       - name: Accept Android SDK Licenses
         run: |
