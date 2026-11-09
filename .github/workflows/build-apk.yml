@@ -93,6 +93,8 @@ jobs:
               "android.api",
               "android.minapi",
               "android.build_tools",
+              "p4a.branch",
+              "p4a.commit",
           )
 
           section = [
@@ -107,6 +109,8 @@ jobs:
               "android.api = 33",
               "android.minapi = 21",
               "android.build_tools = 33.0.2",
+              "p4a.branch = develop",
+              "p4a.commit = e772ad93f20a61c0bbe1cf8955e073cfb41062e1",
           ]
 
           lines = lines[:start + 1] + settings + section + lines[end:]
