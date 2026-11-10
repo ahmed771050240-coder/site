@@ -1,4 +1,5 @@
 name: SULTAN WALLET - Flet APK
+# Rebuild after Flet 1.x startup compatibility fix
 
 on:
   workflow_dispatch:
