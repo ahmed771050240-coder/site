@@ -184,9 +184,9 @@ def main(page: ft.Page):
             sym={"YER":"ر.ي","SAR":"ر.س","USD":"$","AED":"د.إ"}[cur]
             acc_num=f"1001-{state['user_id'] or 0:04d}-{cur}"
             return ft.Container(width=330,height=190,border_radius=18,gradient=ft.LinearGradient(begin=ft.alignment.top_left,end=ft.alignment.bottom_right,colors=[NAVY, CARD]),padding=18,content=ft.Column([
-                ft.Row([ft.Text("SULTAN BANK",size=13,weight="bold",color=GOLD), ft.Text("DEMO • ليست بطاقة مصرفية",size=10,weight="bold",color=WHITE)]),
+                ft.Row([ft.Text("SULTAN WALLET",size=13,weight="bold",color=GOLD), ft.Text("DEMO • ليست بطاقة مصرفية",size=10,weight="bold",color=WHITE)]),
                 ft.Text(cur,size=14,color=MUTED), ft.Text(f"{b:,.2f} {sym}",size=28,weight="bold",color=WHITE),
-                ft.Text(f"رقم الحساب: {acc_num}",size=12,color=LIGHT),
+                ft.Text(f"معرّف تجريبي: {acc_num}",size=12,color=LIGHT),
                 ft.Text("رصيد تجريبي محلي — لا يمثل أموالاً حقيقية",size=10,color=MUTED)
             ]))
         def topup(cur):
@@ -230,11 +230,11 @@ def main(page: ft.Page):
         def show_kyc():
             page.controls.clear(); page.add(ft.Container(padding=20, content=ft.Column([
                 header("التحقق من الهوية - KYC"),
-                ft.Text("لفتح حساب بنكي، يجب التحقق من هويتك.", size=13, color=MUTED),
+                ft.Text("نموذج KYC تجريبي غير متصل بجهة تحقق. لا تدخل بيانات هوية حقيقية.", size=13, color=MUTED),
                 kyc_name, kyc_id_type, kyc_id_num, kyc_dob,
                 ft.Text("مكان الميلاد", size=16, weight="bold", color=GOLD), kyc_birth_country, kyc_birth_gov, kyc_birth_city,
                 kyc_nationality, kyc_address,
-                ft.ElevatedButton("إرسال للمراجعة البنكية", bgcolor=GOLD, color="black", width=400, on_click=do_kyc),
+                ft.ElevatedButton("حفظ طلب تجريبي", bgcolor=GOLD, color="black", width=400, on_click=do_kyc),
                 ft.TextButton("تخطي لاحقاً", on_click=lambda e: show_home()),
             ], scroll=ft.ScrollMode.AUTO))); page.update()
         def show_kyc_status():
@@ -271,7 +271,7 @@ def main(page: ft.Page):
             ]))); refresh_home()
         def show_transfer():
             page.controls.clear(); page.add(ft.Container(padding=20, content=ft.Column([
-                header("تحويل بنكي"),
+                header("التحويلات — غير مفعلة"),
                 transfer_type, to_f, amt_f, cur_dd,
                 ft.ElevatedButton("تأكيد التحويل", bgcolor=GOLD, color="black", width=400, on_click=do_transfer),
                 ft.ElevatedButton("رجوع", bgcolor=CARD, color=WHITE, width=400, on_click=lambda e: show_home()),
