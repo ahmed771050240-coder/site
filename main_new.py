@@ -174,4 +174,4 @@ def main(page: ft.Page):
     page.views.append(login_view)
     page.update()
 
-ft.app(target=main, view=ft.AppView.WEB_BROWSER, port=8550, host="0.0.0.0")
+ft.run(main)
