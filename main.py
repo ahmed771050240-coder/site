@@ -341,4 +341,4 @@ def main(page: ft.Page):
             page.update()
         except: pass
 
-ft.app(target=main)
+ft.run(main)
