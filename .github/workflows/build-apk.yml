@@ -2,6 +2,8 @@ name: SULTAN WALLET APK Build
 on:
   push:
     branches: [ main ]
+  pull_request:
+    branches: [ main ]
   workflow_dispatch:
 permissions:
   contents: read
@@ -16,6 +18,8 @@ jobs:
       - uses: astral-sh/setup-uv@v6
         with:
           enable-cache: true
+      - name: Validate Python syntax
+        run: python -m compileall -q main.py backend
       - name: Build APK
         run: |
           ls -la

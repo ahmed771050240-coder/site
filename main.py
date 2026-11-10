@@ -53,7 +53,9 @@ def init_db():
         print(f"DB INIT ERROR: {e}")
 
 def hash_pw(pw,salt=None):
-    salt=salt or secrets.token_hex(16); return hashlib.sha256((salt+pw).encode()).hexdigest(), salt
+    salt=salt or secrets.token_hex(16)
+    digest=hashlib.scrypt((salt+pw).encode(),salt=bytes.fromhex(salt),n=16384,r=8,p=1).hex()
+    return "scrypt$"+digest, salt
 def get_rates():
     try:
         with urllib.request.urlopen("https://open.er-api.com/v6/latest/YER",timeout=3) as r:
@@ -129,7 +131,8 @@ def main(page: ft.Page):
 
         def do_register(e):
             if not phone_f.value or not name_f.value or not pass_f.value or not pin_f.value: snack("عبي كل الحقول"); return
-            if len(pass_f.value)<6: snack("كلمة السر 6 أحرف على الأقل"); return
+            if len(pass_f.value)<12: snack("كلمة السر يجب أن تكون 12 حرفاً على الأقل"); return
+            if len(pin_f.value)!=4 or not pin_f.value.isdigit(): snack("رمز PIN يجب أن يكون 4 أرقام"); return
             h,s=hash_pw(pass_f.value); ph,_=hash_pw(pin_f.value)
             try:
                 c=db()
@@ -143,7 +146,10 @@ def main(page: ft.Page):
                 c=db(); row=c.execute("SELECT * FROM users WHERE phone=?",(phone_f.value,)).fetchone(); c.close()
                 if not row: snack("الحساب غير موجود"); return
                 h,_=hash_pw(pass_f.value,row["salt"])
-                if h!=row["pass_hash"]: snack("كلمة السر غير صحيحة"); return
+                if h!=row["pass_hash"]:
+                    legacy=hashlib.sha256((row["salt"]+pass_f.value).encode()).hexdigest()
+                    if legacy!=row["pass_hash"]: snack("كلمة السر غير صحيحة"); return
+                    c=db(); c.execute("UPDATE users SET pass_hash=? WHERE id=?",(h,row["id"])); c.commit(); c.close()
                 state.update(user_id=row["id"],name=row["name"],phone=row["phone"]); ensure_accounts(row["id"])
                 k=kyc_status(row["id"])
                 if not k: show_kyc()
@@ -151,6 +157,8 @@ def main(page: ft.Page):
                 else: show_home()
             except Exception as ex: snack(f"خطأ دخول: {ex}"); print(ex)
         def do_kyc(e):
+            snack("التحقق من الهوية غير متاح في النسخة التجريبية. لا تدخل بيانات هوية حقيقية.")
+            return
             if not kyc_name.value or not kyc_id_num.value or not kyc_dob.value or not kyc_birth_city.value or not kyc_address.value: snack("عبي كل الحقول *"); return
             try:
                 d=datetime.datetime.strptime(kyc_dob.value,"%Y-%m-%d"); age=(datetime.datetime.now()-d).days//365
@@ -160,10 +168,10 @@ def main(page: ft.Page):
                 c=db(); c.execute("INSERT OR REPLACE INTO kyc(user_id,full_name,id_type,id_number,dob,birth_country,birth_governorate,birth_city,address,nationality,status,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",(state["user_id"],kyc_name.value,kyc_id_type.value,kyc_id_num.value.strip().upper(),kyc_dob.value,kyc_birth_country.value,kyc_birth_gov.value,kyc_birth_city.value,kyc_address.value,kyc_nationality.value,"pending",datetime.datetime.now().isoformat())); c.commit(); c.close(); show_kyc_status()
             except Exception as ex: snack(str(ex))
         def approve_demo():
-            try:
-                c=db(); c.execute("UPDATE kyc SET status='approved' WHERE user_id=?",(state["user_id"],)); c.commit(); c.close(); show_home()
-            except: show_home()
+            snack("لا يمكن اعتماد الهوية تلقائياً. يلزم فحص فعلي من جهة مخولة.")
         def do_transfer(e):
+            snack("التحويلات متوقفة حتى ربط مزود دفع مرخص وخادم آمن.")
+            return
             k=kyc_status(state["user_id"])
             if not k or k["status"]!="approved": snack("أكمل التحقق من الهوية أولاً"); show_kyc(); return
             try:
@@ -184,14 +192,13 @@ def main(page: ft.Page):
             sym={"YER":"ر.ي","SAR":"ر.س","USD":"$","AED":"د.إ"}[cur]
             acc_num=f"1001-{state['user_id'] or 0:04d}-{cur}"
             return ft.Container(width=330,height=190,border_radius=18,gradient=ft.LinearGradient(begin=ft.alignment.top_left,end=ft.alignment.bottom_right,colors=[NAVY, CARD]),padding=18,content=ft.Column([
-                ft.Row([ft.Text("SULTAN BANK",size=13,weight="bold",color=GOLD), ft.Text("VISA",size=16,weight="bold",color=WHITE)]),
+                ft.Row([ft.Text("SULTAN WALLET",size=13,weight="bold",color=GOLD), ft.Text("DEMO • ليست بطاقة مصرفية",size=10,weight="bold",color=WHITE)]),
                 ft.Text(cur,size=14,color=MUTED), ft.Text(f"{b:,.2f} {sym}",size=28,weight="bold",color=WHITE),
-                ft.Text(f"رقم الحساب: {acc_num}",size=12,color=LIGHT),
-                ft.Row([ft.ElevatedButton("تحويل",bgcolor=GOLD,color="black",on_click=lambda e: go_transfer(cur)), ft.ElevatedButton("شحن",bgcolor=GREEN,color="white",on_click=lambda e: topup(cur))])
+                ft.Text(f"معرّف تجريبي: {acc_num}",size=12,color=LIGHT),
+                ft.Text("رصيد تجريبي محلي — لا يمثل أموالاً حقيقية",size=10,color=MUTED)
             ]))
         def topup(cur):
-            try: ref=add_ledger(state["user_id"],cur,1000,"topup",f"إيداع {cur}"); snack(f"تم الإيداع 1000 {cur} - {ref}"); refresh_home()
-            except Exception as ex: snack(str(ex))
+            snack("الإيداع غير متاح: لا يوجد مزود دفع مربوط. لا يمكن إنشاء رصيد من التطبيق.")
         def cards_row(): return ft.Row(scroll=ft.ScrollMode.AUTO, controls=[bank_card(c) for c in CURRENCIES])
         def history_text():
             if not state["user_id"]: return "سجل دخول"
@@ -220,22 +227,22 @@ def main(page: ft.Page):
             page.add(ft.Container(padding=20, content=ft.Column([
                 ft.Container(bgcolor=NAVY, padding=20, border_radius=18, content=ft.Column([
                     ft.Text("SULTAN WALLET", size=32, weight="bold", color=GOLD, text_align="center"),
-                    ft.Text("محفظتك البنكية - آمنة - دولية", size=14, color=WHITE, text_align="center"),
+                    ft.Text("واجهة محفظة تجريبية متعددة العملات", size=14, color=WHITE, text_align="center"),
                     ft.Text("YER • SAR • USD • AED", size=13, color=MUTED, text_align="center"),
                 ])),
                 name_f, phone_f, pass_f, pin_f,
                 ft.ElevatedButton("فتح حساب جديد", bgcolor=GOLD, color="black", width=400, on_click=do_register),
                 ft.ElevatedButton("دخول", bgcolor=CARD, color=WHITE, width=400, on_click=do_login),
-                ft.Text("بنك سلطان - حماية مصرفية: تشفير + PIN + تحقق هوية", size=11, color=MUTED, text_align="center"),
+                ft.Text("نسخة تجريبية فقط — لا تدخل بيانات هوية حقيقية أو أموالاً حقيقية", size=11, color=MUTED, text_align="center"),
             ]))); page.update()
         def show_kyc():
             page.controls.clear(); page.add(ft.Container(padding=20, content=ft.Column([
                 header("التحقق من الهوية - KYC"),
-                ft.Text("لفتح حساب بنكي، يجب التحقق من هويتك.", size=13, color=MUTED),
+                ft.Text("نموذج KYC تجريبي غير متصل بجهة تحقق. لا تدخل بيانات هوية حقيقية.", size=13, color=MUTED),
                 kyc_name, kyc_id_type, kyc_id_num, kyc_dob,
                 ft.Text("مكان الميلاد", size=16, weight="bold", color=GOLD), kyc_birth_country, kyc_birth_gov, kyc_birth_city,
                 kyc_nationality, kyc_address,
-                ft.ElevatedButton("إرسال للمراجعة البنكية", bgcolor=GOLD, color="black", width=400, on_click=do_kyc),
+                ft.ElevatedButton("حفظ طلب تجريبي", bgcolor=GOLD, color="black", width=400, on_click=do_kyc),
                 ft.TextButton("تخطي لاحقاً", on_click=lambda e: show_home()),
             ], scroll=ft.ScrollMode.AUTO))); page.update()
         def show_kyc_status():
@@ -244,7 +251,7 @@ def main(page: ft.Page):
                 header("حالة الحساب"),
                 ft.Text(txt, size=16, color=GOLD),
                 ft.Text(f"{k['full_name'] if k else ''}\n{k['id_type'] if k else ''} - {k['id_number'] if k else ''}\nالميلاد: {k['dob'] if k else ''}", size=13, color=WHITE),
-                ft.ElevatedButton("تفعيل الحساب - دخول", bgcolor=GREEN, color="white", width=400, on_click=lambda e: approve_demo()),
+                ft.ElevatedButton("دخول للواجهة التجريبية", bgcolor=CARD, color=WHITE, width=400, on_click=lambda e: show_home()),
                 ft.ElevatedButton("تعديل البيانات", bgcolor=CARD, color=WHITE, width=400, on_click=lambda e: show_kyc()),
                 ft.TextButton("خروج", on_click=lambda e: show_auth()),
             ]))); page.update()
@@ -268,21 +275,21 @@ def main(page: ft.Page):
                         ft.ElevatedButton("🪪 حسابي", bgcolor=CARD, color=WHITE, width=110, on_click=lambda e: show_kyc_status())]),
                 ft.Text("كشف الحساب", size=16, weight="bold", color=GOLD), history_label,
                 ft.Text("طلبات الخدمات", size=16, weight="bold", color=GOLD), orders_label,
-                ft.Text("خدمة العملاء: support@sultanwallet.com - 24/7", size=11, color=MUTED),
+                ft.Text("الدعم: قناة التواصل غير مفعلة بعد — أضف بيانات الدعم الرسمية قبل النشر", size=11, color=MUTED),
             ]))); refresh_home()
         def show_transfer():
             page.controls.clear(); page.add(ft.Container(padding=20, content=ft.Column([
-                header("تحويل بنكي"),
+                header("التحويلات — غير مفعلة"),
                 transfer_type, to_f, amt_f, cur_dd,
                 ft.ElevatedButton("تأكيد التحويل", bgcolor=GOLD, color="black", width=400, on_click=do_transfer),
                 ft.ElevatedButton("رجوع", bgcolor=CARD, color=WHITE, width=400, on_click=lambda e: show_home()),
-                ft.Text("رسوم التحويل 0.5% - التحويل الداخلي فوري", size=11, color=MUTED),
+                ft.Text("التحويلات غير مفعلة في هذه النسخة التجريبية", size=11, color=MUTED),
             ]))); page.update()
         def show_receipt(ref, amt, cur, fee, to_phone, status):
             page.controls.clear(); page.add(ft.Container(padding=20, content=ft.Column([
                 header("إيصال التحويل"),
                 ft.Container(bgcolor=CARD, padding=16, border_radius=16, content=ft.Column([
-                    ft.Text("تم التحويل بنجاح ✅", size=20, weight="bold", color=GREEN),
+                    ft.Text("إشعار عملية تجريبية", size=20, weight="bold", color=GREEN),
                     ft.Text(f"المبلغ: {amt} {cur}", size=16, color=WHITE),
                     ft.Text(f"إلى: {to_phone}", size=14, color=WHITE),
                     ft.Text(f"الرسوم: {fee} {cur}", size=14, color=WHITE),
@@ -318,6 +325,8 @@ def main(page: ft.Page):
                 ft.ElevatedButton("رجوع", bgcolor=CARD, color=WHITE, width=400, on_click=lambda e: show_home()),
             ], scroll=ft.ScrollMode.AUTO))); page.update()
         def buy_service(e):
+            snack("شراء الخدمات متوقف حتى ربط مزود شحن حقيقي والتحقق من الدفع.")
+            return
             item=sel_service["item"]
             if not item: snack("اختر خدمة"); return
             if not service_target.value: snack("اكتب رقم المستفيد"); return

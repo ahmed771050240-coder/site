@@ -1,26 +1,41 @@
-# SULTAN WALLET — UI refresh 1.1.0
+# SULTAN WALLET
 
-This package contains the updated Flet Android app source.
+SULTAN WALLET is a multi-currency wallet application prototype with separate SAR, USD, AED, and YER account views.
 
-## Changes
-- Replaced the previous wallet dashboard presentation with the dark emerald SULTAN WALLET interface.
-- Preserved the existing login, registration, API endpoints, account details, and live wallet/transaction retrieval.
-- Kept transfer, deposit, withdrawal, and report actions clearly marked as unavailable until their secure backend flows are implemented.
-- APK workflow remains configured for arm64-v8a and excludes server-side secrets and files.
+## Current product status
 
-## Build
-The GitHub Actions workflow `.github/workflows/build-apk.yml` builds the Android APK when run manually or when relevant source files are pushed.
+This repository is a software prototype and backend foundation. It is **not a bank, e-money institution, card issuer, remittance provider, or licensed payment service**.
 
-Do not include `wallet_auth.db`, `auth_secret.key`, or other server secrets in the Android package.
+- The Android app is a demonstration UI. Local balances are not customer funds.
+- Deposits, withdrawals, transfers, card issuing, and service fulfillment are disabled until licensed providers and secure server-side integrations are contracted and tested.
+- The API supports registration, login, and read-only demo wallet accounts.
+- FX figures, if displayed by a client, are indicative reference data and not executable exchange quotes.
+- KYC is not approved automatically. Do not collect real identity documents until secure backend storage and an authorized review workflow exist.
 
+## Repository layout
 
-## Upgrade work in progress
+- `main.py` — Flet Android demonstration client.
+- `backend/main.py` — FastAPI authentication and read-only wallet API.
+- `migrations/001_init.sql` — PostgreSQL schema.
+- `requirements-server.txt` — backend dependencies.
+- `.github/workflows/build-apk.yml` — Android APK build.
 
-- Added separate horizontally scrollable wallet balance cards in this order: SAR, USD, AED, YER.
-- Added AED to the internal wallet ledger currency set. Existing users receive the AED account when their wallet endpoint next initializes its account rows.
-- Added `/market/fx` using Frankfurter daily reference rates and `/market/gold` using XAUS spot data. The app displays source dates/status and does not invent missing values.
-- Added UI placeholders for international transfers, app top-ups and game credits. These are not enabled for real purchases until licensed providers and server-side payment verification are integrated.
+## Build Android APK
 
-## Important production limitations
+The GitHub Actions workflow builds the Flet APK for arm64-v8a. Run it from Actions or push a change to `main`. Download the APK from the successful workflow's Artifacts section.
 
-The current transfer ledger is an internal demonstration balance only (`real_money_enabled: false`). It is not connected to banks, card processors, remittance networks, app-store top-up providers, or KYC/AML verification. Market reference rates are not executable local exchange quotes. Gold spot data is indicative and may be delayed or unavailable. Do not use the current build to hold or transfer customer funds.
+## Run the backend
+
+1. Create a PostgreSQL database.
+2. Apply `migrations/001_init.sql`.
+3. Install dependencies: `pip install -r requirements-server.txt`.
+4. Set `DATABASE_URL` and `JWT_SECRET_KEY` in the server environment. Use a random secret of at least 32 characters.
+5. Start: `uvicorn backend.main:app --host 127.0.0.1 --port 8000`.
+
+See [backend/README.md](backend/README.md) and [SECURITY.md](SECURITY.md).
+
+## Production readiness still required
+
+Before accepting real money: licensed provider contracts, KYC/AML vendor and operations, double-entry immutable ledger, idempotency, provider settlement and signed webhooks, reconciliation, MFA, rate limiting, refresh-token revocation, admin RBAC, audit monitoring, backups, privacy controls, penetration testing, and legal/regulatory approval.
+
+A target sale price of USD 10,000 is a commercial goal, not a guaranteed valuation. Buyers will expect a working build, test evidence, documentation, clear IP ownership, and proof of provider/licensing readiness.
