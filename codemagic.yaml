@@ -15,7 +15,7 @@ workflows:
       - name: Build Android APK
         script: |
           export PATH="$HOME/.local/bin:$PATH"
-          uv run flet build apk \
+          uv run flet build apk --yes \
             --arch arm64-v8a \
             --bundle-id org.sultan.wallet \
             --product "SULTAN WALLET" \
