@@ -50,8 +50,7 @@ jobs:
 
       - name: Generate APK checksum
         run: |
-          cd "$(dirname "${{ steps.build.outputs.archive-path }}")"
-          sha256sum "$(basename "${{ steps.build.outputs.archive-path }}")" > SULTAN_WALLET.apk.sha256
+          sha256sum "${{ steps.build.outputs.archive-path }}" > "${{ steps.build.outputs.archive-path }}.sha256"
 
       - name: Upload APK
         uses: actions/upload-artifact@v7
@@ -59,6 +58,6 @@ jobs:
           name: SULTAN-WALLET-APK
           path: |
             ${{ steps.build.outputs.archive-path }}
-            ${{ dirname(steps.build.outputs.archive-path) }}/SULTAN_WALLET.apk.sha256
+            ${{ steps.build.outputs.archive-path }}.sha256
           archive: false
           if-no-files-found: error
