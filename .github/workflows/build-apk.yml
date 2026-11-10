@@ -6,6 +6,9 @@ on:
     branches:
       - main
       - fix/flet-android-build
+  pull_request:
+    branches:
+      - main
 
 permissions:
   contents: read
@@ -47,7 +50,9 @@ jobs:
       - name: Install build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y             clang cmake ninja-build pkg-config             libgtk-3-dev liblzma-dev libstdc++-12-dev
+          sudo apt-get install -y \
+            clang cmake ninja-build pkg-config \
+            libgtk-3-dev liblzma-dev libstdc++-12-dev
           python -m pip install --upgrade pip
           python -m pip install "flet-cli==1.0.5"
 
