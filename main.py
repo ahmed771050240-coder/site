@@ -53,7 +53,9 @@ def init_db():
         print(f"DB INIT ERROR: {e}")
 
 def hash_pw(pw,salt=None):
-    salt=salt or secrets.token_hex(16); return hashlib.sha256((salt+pw).encode()).hexdigest(), salt
+    salt=salt or secrets.token_hex(16)
+    digest=hashlib.scrypt((salt+pw).encode(),salt=bytes.fromhex(salt),n=16384,r=8,p=1).hex()
+    return "scrypt$"+digest, salt
 def get_rates():
     try:
         with urllib.request.urlopen("https://open.er-api.com/v6/latest/YER",timeout=3) as r:
@@ -129,7 +131,8 @@ def main(page: ft.Page):
 
         def do_register(e):
             if not phone_f.value or not name_f.value or not pass_f.value or not pin_f.value: snack("عبي كل الحقول"); return
-            if len(pass_f.value)<6: snack("كلمة السر 6 أحرف على الأقل"); return
+            if len(pass_f.value)<12: snack("كلمة السر يجب أن تكون 12 حرفاً على الأقل"); return
+            if len(pin_f.value)!=4 or not pin_f.value.isdigit(): snack("رمز PIN يجب أن يكون 4 أرقام"); return
             h,s=hash_pw(pass_f.value); ph,_=hash_pw(pin_f.value)
             try:
                 c=db()
@@ -143,7 +146,10 @@ def main(page: ft.Page):
                 c=db(); row=c.execute("SELECT * FROM users WHERE phone=?",(phone_f.value,)).fetchone(); c.close()
                 if not row: snack("الحساب غير موجود"); return
                 h,_=hash_pw(pass_f.value,row["salt"])
-                if h!=row["pass_hash"]: snack("كلمة السر غير صحيحة"); return
+                if h!=row["pass_hash"]:
+                    legacy=hashlib.sha256((row["salt"]+pass_f.value).encode()).hexdigest()
+                    if legacy!=row["pass_hash"]: snack("كلمة السر غير صحيحة"); return
+                    c=db(); c.execute("UPDATE users SET pass_hash=? WHERE id=?",(h,row["id"])); c.commit(); c.close()
                 state.update(user_id=row["id"],name=row["name"],phone=row["phone"]); ensure_accounts(row["id"])
                 k=kyc_status(row["id"])
                 if not k: show_kyc()
@@ -151,6 +157,8 @@ def main(page: ft.Page):
                 else: show_home()
             except Exception as ex: snack(f"خطأ دخول: {ex}"); print(ex)
         def do_kyc(e):
+            snack("التحقق من الهوية غير متاح في النسخة التجريبية. لا تدخل بيانات هوية حقيقية.")
+            return
             if not kyc_name.value or not kyc_id_num.value or not kyc_dob.value or not kyc_birth_city.value or not kyc_address.value: snack("عبي كل الحقول *"); return
             try:
                 d=datetime.datetime.strptime(kyc_dob.value,"%Y-%m-%d"); age=(datetime.datetime.now()-d).days//365
