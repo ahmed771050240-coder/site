@@ -39,3 +39,7 @@ See [backend/README.md](backend/README.md) and [SECURITY.md](SECURITY.md).
 Before accepting real money: licensed provider contracts, KYC/AML vendor and operations, double-entry immutable ledger, idempotency, provider settlement and signed webhooks, reconciliation, MFA, rate limiting, refresh-token revocation, admin RBAC, audit monitoring, backups, privacy controls, penetration testing, and legal/regulatory approval.
 
 A target sale price of USD 10,000 is a commercial goal, not a guaranteed valuation. Buyers will expect a working build, test evidence, documentation, clear IP ownership, and proof of provider/licensing readiness.
+
+
+## Build status
+The Android APK is produced by the GitHub Actions workflow after a push to `main` or a manual workflow run. A successful run publishes the APK as the `SULTAN-WALLET-APK` artifact.
