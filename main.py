@@ -287,4 +287,4 @@ def main(page: ft.Page):
         except Exception as ex: snack(str(ex))
 
     show_auth()
-ft.app(target=main)
+ft.run(main)
