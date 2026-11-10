@@ -2,7 +2,7 @@ workflows:
   sultan-wallet-android:
     name: SULTAN WALLET APK
     max_build_duration: 120
-    instance_type: linux_x2
+    instance_type: mac_mini_m2
 
     scripts:
       - name: Install build tools and dependencies
