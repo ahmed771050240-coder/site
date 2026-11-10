@@ -1,14 +1,15 @@
 [project]
 name = "sultan-wallet"
-version = "1.0.0"
+version = "1.1.0"
 description = "SULTAN WALLET"
 requires-python = ">=3.10"
-dependencies = ["flet==1.0.5"]
+dependencies = ["flet==1.0.5", "requests>=2.32,<3.0"]
 
 [dependency-groups]
 dev = ["flet-cli==1.0.5"]
 
 [tool.flet]
+assets_dir = "assets"
 org = "org.sultan"
 product = "SULTAN WALLET"
 company = "SULTAN WALLET"

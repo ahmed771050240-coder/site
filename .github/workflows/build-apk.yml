@@ -1,49 +1,52 @@
-name: Build SULTAN WALLET APK
+name: SULTAN WALLET APK Build
 
 on:
   workflow_dispatch:
   push:
+    branches:
+      - main
     paths:
-      - 'main.py'
-      - 'pyproject.toml'
-      - '.github/workflows/build-apk.yml'
+      - "main.py"
+      - "pyproject.toml"
+      - "uv.lock"
+      - "assets/**"
+      - ".github/workflows/build-apk.yml"
 
 permissions:
   contents: read
 
 jobs:
-  build-apk:
-    runs-on: ubuntu-latest
+  build:
+    runs-on: ubuntu-22.04
     steps:
-      - name: Download project
-        uses: actions/checkout@v6
+      - name: Checkout project
+        uses: actions/checkout@v4
 
-      - name: Build Android APK
-        id: build
-        uses: flet-dev/flet-build-action@v1
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
-          target: apk
-          runner-python-version: "3.13"
-          bundled-python-version: "3.13"
-          build-number: ${{ github.run_number }}
-          extra-args: >-
-            --arch arm64-v8a
-            --exclude auth_server.py
-            --exclude wallet_auth.db
-            --exclude auth_secret.key
-            --exclude login_patch.py
-            --exclude main.py.backup_login
-            --exclude main.py.backup_icons
-            --exclude main.py.backup_colors
-            --exclude main.py.backup_buttons
-            --exclude main.py.backup_alignment
-            --exclude main.py.backup_nav_fix
+          python-version: "3.11"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+
+      - name: Install project dependencies
+        run: uv sync --group dev
+
+      - name: Build SULTAN WALLET APK with Flet
+        run: uv run flet build apk --arch arm64-v8a armeabi-v7a
+
+      - name: Verify APK output
+        run: |
+          find build -type f -name "*.apk" -print
+          test -n "$(find build -type f -name "*.apk" -print -quit)"
 
       - name: Upload APK
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v4
         with:
           name: SULTAN-WALLET-APK
-          path: ${{ steps.build.outputs.archive-path }}
-          archive: false
+          path: build/apk/*.apk
           if-no-files-found: error
           retention-days: 7

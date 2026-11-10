@@ -4,15 +4,18 @@
 # See the end of the file for more details and warnings about common mistakes.
 
 [app]
+android.ndk = 28c
+
+
 
 # (str) Title of your application
-title = Sultan Wallet
+title = My Application
 
 # (str) Package name
-package.name = sultanwallet
+package.name = myapp
 
 # (str) Package domain (needed for android/ios packaging)
-package.domain = org.sultan
+package.domain = org.test
 
 # (str) Source code where the main.py live
 source.dir = .
@@ -41,8 +44,8 @@ version = 0.1
 # version.filename = %(source.dir)s/main.py
 
 # (list) Application requirements
-# comma separated e.g. requirements = sqlite3,kivy
-requirements = python3,kivy
+# comma separated e.g. requirements = python3,kivy,sqlite3
+requirements = python3,kivy,sqlite3
 
 # (str) Custom source folders for requirements
 # Sets custom source for any requirements with recipes
@@ -109,22 +112,16 @@ fullscreen = 0
 #android.features = android.hardware.usb.host
 
 # (int) Target Android API, should be as high as possible.
-#android.api = 33
 
 # (int) Minimum API your APK / AAB will support.
-#android.minapi = 24
 
 # (int) Android SDK version to use
 #android.sdk = 20
 
 # (str) Android NDK version to use
-#android.ndk = 23b
 
-# (int) Android NDK API to use. This is the minimum API your app will support, it should usually match android.minapi.
-#android.ndk_api = 21
 
 # (str) Android NDK directory (if empty, it will be automatically downloaded.)
-#android.ndk_path =
 
 # (str) Android SDK directory (if empty, it will be automatically downloaded.)
 #android.sdk_path =
@@ -140,8 +137,7 @@ fullscreen = 0
 # (bool) If True, then automatically accept SDK license
 # agreements. This is intended for automation only. If set to False,
 # the default, you will be shown the license when first running
-android.accept_sdk_license = True
-android.build_tools_version = 34.0.0
+# buildozer.
 # android.accept_sdk_license = False
 
 # (str) Android entry point, default is ok for Kivy-based app
@@ -214,7 +210,6 @@ android.build_tools_version = 34.0.0
 
 # (bool) Enable AndroidX support. Enable when 'android.gradle_dependencies'
 # contains an 'androidx' package, or any package from Kotlin source.
-# android.enable_androidx requires android.api >= 28
 #android.enable_androidx = True
 
 # (list) add java compile options
@@ -292,7 +287,7 @@ android.build_tools_version = 34.0.0
 
 # (list) The Android archs to build for, choices: armeabi-v7a, arm64-v8a, x86, x86_64
 # In past, was `android.arch` as we weren't supporting builds for multiple archs at the same time.
-android.archs = arm64-v8a
+android.archs = arm64-v8a, armeabi-v7a
 
 # (int) overrides automatic versionCode computation (used in build.gradle)
 # this is not the same as app version and should only be edited if you know what you're doing
@@ -454,12 +449,12 @@ warn_on_root = 1
 #
 #   Warning: Comments cannot be used "inline" - i.e.
 #       [app]
-#       title = Sultan Wallet # This is not a comment, it is part of the title.
+#       title = My Application # This is not a comment, it is part of the title.
 #
 #   Warning: Indented text is treated as a multiline string - i.e.
 #       [app]
-#       title = Sultan Wallet
-#          package.name = sultanwallet # This is all part of the title.
+#       title = My Application
+#          package.name = myapp # This is all part of the title.
 #
 #   Buildozer's .spec files have some additional features:
 #
@@ -486,7 +481,7 @@ warn_on_root = 1
 #   and extend the excluded directories to remove the HD content.
 #
 #       [app@demo]
-#       title = Sultan Wallet (demo)
+#       title = My Application (demo)
 #
 #       [app:source.exclude_patterns@demo]
 #       images/hd/*
@@ -496,3 +491,12 @@ warn_on_root = 1
 #        buildozer --profile demo android debug
 #
 #   Environment variable overrides have priority over profile overrides.
+
+# Android SDK configuration
+
+# SULTAN WALLET Android build configuration
+android.api = 33
+android.minapi = 21
+android.accept_sdk_license = True
+android.skip_update = True
+android.build_tools = 33.0.2
