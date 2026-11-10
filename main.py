@@ -287,4 +287,5 @@ def main(page: ft.Page):
         except Exception as ex: snack(str(ex))
 
     show_auth()
+# Flet 1.x entry point: ft.app was removed; use ft.run.
 ft.run(main)
