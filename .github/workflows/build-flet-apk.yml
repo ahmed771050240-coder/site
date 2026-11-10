@@ -10,11 +10,16 @@ on:
       - '**.py'
       - 'pyproject.toml'
       - 'uv.lock'
+      - 'README.md'
       - 'assets/**'
       - '.github/workflows/build-flet-apk.yml'
 
 permissions:
   contents: read
+
+concurrency:
+  group: sultan-wallet-apk-main
+  cancel-in-progress: true
 
 jobs:
   build-apk:
@@ -24,6 +29,9 @@ jobs:
     steps:
       - name: Checkout source
         uses: actions/checkout@v6
+
+      - name: Validate Python source syntax
+        run: python -m py_compile main.py backend/main.py wallet_engine.py auth_server.py
 
       - name: Build Android APK
         id: build
@@ -40,10 +48,17 @@ jobs:
             --project sultan-wallet
             --artifact SULTAN_WALLET
 
+      - name: Generate APK checksum
+        run: |
+          cd "$(dirname "${{ steps.build.outputs.archive-path }}")"
+          sha256sum "$(basename "${{ steps.build.outputs.archive-path }}")" > SULTAN_WALLET.apk.sha256
+
       - name: Upload APK
         uses: actions/upload-artifact@v7
         with:
           name: SULTAN-WALLET-APK
-          path: ${{ steps.build.outputs.archive-path }}
+          path: |
+            ${{ steps.build.outputs.archive-path }}
+            ${{ dirname(steps.build.outputs.archive-path) }}/SULTAN_WALLET.apk.sha256
           archive: false
           if-no-files-found: error
