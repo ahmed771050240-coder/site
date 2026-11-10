@@ -1,0 +1,26 @@
+workflows:
+  sultan-wallet-android:
+    name: SULTAN WALLET APK
+    max_build_duration: 120
+    instance_type: linux_x2
+
+    scripts:
+      - name: Install build tools and dependencies
+        script: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          export PATH="$HOME/.local/bin:$PATH"
+          uv python install 3.14
+          uv sync --python 3.14 --group dev
+
+      - name: Build Android APK
+        script: |
+          export PATH="$HOME/.local/bin:$PATH"
+          uv run flet build apk \
+            --arch arm64-v8a \
+            --bundle-id org.sultan.wallet \
+            --product "SULTAN WALLET" \
+            --project sultan-wallet \
+            --artifact SULTAN_WALLET
+
+    artifacts:
+      - build/apk/*.apk
