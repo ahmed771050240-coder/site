@@ -1,5 +1,5 @@
 name: SULTAN WALLET - Flet APK
-# Rebuild after Flet 1.x startup compatibility fix
+# Build the Android APK with the official Flet builder.
 
 on:
   workflow_dispatch:
@@ -9,6 +9,7 @@ on:
     paths:
       - '**.py'
       - 'pyproject.toml'
+      - 'uv.lock'
       - 'assets/**'
       - '.github/workflows/build-flet-apk.yml'
 
