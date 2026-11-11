@@ -19,7 +19,9 @@ jobs:
         with:
           enable-cache: true
       - name: Validate Python syntax
-        run: python -m compileall -q main.py backend
+        run: python -m compileall -q main.py backend wallet_api.py
+      - name: Run API client contract tests
+        run: python -m unittest discover -s tests -v
       - name: Build APK
         run: |
           ls -la
