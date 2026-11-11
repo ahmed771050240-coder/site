@@ -174,3 +174,12 @@ def me(credentials: HTTPAuthorizationCredentials = Depends(bearer)):
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="127.0.0.1", port=8000)
+
+
+# Wallet ledger endpoints are mounted on the same authenticated API.
+def execute(con, sql, params=()):
+    return con.execute(sql, params)
+
+
+from wallet_engine import register_wallet_routes
+register_wallet_routes(app, connect_db, execute, read_token, bearer)
