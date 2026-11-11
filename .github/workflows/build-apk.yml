@@ -41,8 +41,16 @@ jobs:
         run: uv run flet build apk --arch arm64-v8a
 
       - name: Verify APK output
+        shell: bash
         run: |
-          find build -type f -name "*.apk" -print -quit | grep -q .
+          APK="$(find build/apk -type f -name '*.apk' -print -quit 2>/dev/null || true)"
+          if [[ -z "$APK" ]]; then
+            echo "::error::Android APK build completed but produced no .apk file under build/apk/"
+            echo "Contents of build directory:"
+            find build -maxdepth 4 -type f -print 2>/dev/null || true
+            exit 1
+          fi
+          echo "APK produced: $APK"
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
