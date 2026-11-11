@@ -8,7 +8,7 @@ from fastapi.security import HTTPAuthorizationCredentials
 from pydantic import BaseModel, Field
 
 
-CURRENCIES = ("YER", "SAR", "USD")
+CURRENCIES = ("YER", "SAR", "AED", "USD")
 
 
 class TransferRequest(BaseModel):
