@@ -350,4 +350,6 @@ def main(page: ft.Page):
             page.update()
         except: pass
 
+
+# Flet 1.x entry point; do not use the removed ft.app API.
 ft.run(main)
