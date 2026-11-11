@@ -14,7 +14,8 @@ This repository is a software prototype and backend foundation. It is **not a ba
 
 ## Repository layout
 
-- `main.py` — Flet Android demonstration client.
+- `main.py` — Flet Android client; registration, login, profile, and wallet reads use the HTTPS API.
+- `wallet_api.py` — small HTTPS API client; no client-side balance mutation.
 - `backend/main.py` — FastAPI authentication and read-only wallet API.
 - `migrations/001_init.sql` — PostgreSQL schema.
 - `requirements-server.txt` — backend dependencies.
@@ -24,13 +25,17 @@ This repository is a software prototype and backend foundation. It is **not a ba
 
 The GitHub Actions workflow builds the Flet APK for arm64-v8a. Run it from Actions or push a change to `main`. Download the APK from the successful workflow's Artifacts section.
 
-## Run the backend
+## Deploy the backend
 
-1. Create a PostgreSQL database.
-2. Apply `migrations/001_init.sql`.
-3. Install dependencies: `pip install -r requirements-server.txt`.
-4. Set `DATABASE_URL` and `JWT_SECRET_KEY` in the server environment. Use a random secret of at least 32 characters.
-5. Start: `uvicorn backend.main:app --host 127.0.0.1 --port 8000`.
+The Render Blueprint starts `backend.main:app` (not the legacy `auth_server.py`). Before first use:
+
+1. Create/attach a PostgreSQL database and set `DATABASE_URL` in the service environment.
+2. Apply `migrations/001_init.sql` to that database.
+3. Set `JWT_SECRET_KEY` to a cryptographically random secret of at least 32 characters.
+4. Deploy the service and confirm `/health` reports `status: ok` and `database: ready`. Health now fails if the secret, database, or required tables are missing.
+5. The Android client defaults to `https://sultan-wallet-api.onrender.com`; override `SULTAN_WALLET_API_URL` only when building for a different HTTPS API.
+
+For local development, install dependencies and run `uvicorn backend.main:app --host 127.0.0.1 --port 8000` after applying the migration.
 
 See [backend/README.md](backend/README.md) and [SECURITY.md](SECURITY.md).
 

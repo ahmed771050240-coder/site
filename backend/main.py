@@ -92,7 +92,27 @@ def current_user(credentials: HTTPAuthorizationCredentials | None = Depends(bear
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "money_movement_enabled": False}
+    # Do not report a healthy deployment if secrets, PostgreSQL, or migrations are missing.
+    require_security_config()
+    try:
+        with db_connection() as conn:
+            tables = conn.execute(
+                "SELECT to_regclass('public.app_users'), to_regclass('public.wallet_accounts')"
+            ).fetchone()
+        if not tables or tables[0] is None or tables[1] is None:
+            raise HTTPException(
+                status_code=503,
+                detail="Database migrations are missing; apply migrations/001_init.sql"
+            )
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(status_code=503, detail="PostgreSQL is unavailable") from None
+    return {
+        "status": "ok",
+        "database": "ready",
+        "money_movement_enabled": False
+    }
 
 
 @app.post("/auth/register", response_model=TokenResponse, status_code=201)
