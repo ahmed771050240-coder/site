@@ -1,0 +1,21 @@
+name: SULTAN WALLET - API Client Checks
+on:
+  push:
+    branches: [api-integration-hardening]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  api-client-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Compile application and client
+        run: python -m py_compile main.py wallet_api.py backend/main.py
+      - name: Run API client contract tests
+        run: python -m unittest discover -s tests -v
