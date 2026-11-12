@@ -6,12 +6,14 @@ on:
   push:
     branches:
       - main
+      - fix/android-ui-stability
     paths:
       - '**.py'
       - 'pyproject.toml'
       - 'uv.lock'
       - 'README.md'
       - 'assets/**'
+      - 'src/**'
       - '.github/workflows/build-flet-apk.yml'
 
 permissions:
