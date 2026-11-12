@@ -32,6 +32,9 @@ jobs:
       - name: Checkout source
         uses: actions/checkout@v6
 
+      - name: Install project and register Flet extension
+        run: python -m pip install .
+
       - name: Validate Python source syntax
         run: python -m py_compile main.py backend/main.py wallet_engine.py auth_server.py
 
