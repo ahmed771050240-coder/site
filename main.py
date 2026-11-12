@@ -1,6 +1,5 @@
 # SULTAN WALLET V4.1 - BANK - CRASH FIX
 import flet as ft
-from sultan_wallet_reown import SultanWalletReown
 import sqlite3, hashlib, secrets, json, urllib.request, datetime, os, sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
 from sultan_wallet_reown import SultanWalletReown
