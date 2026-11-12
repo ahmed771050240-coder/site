@@ -1,7 +1,7 @@
 name: SULTAN WALLET APK Build
 on:
   push:
-    branches: [ main ]
+    branches: [ main, professional-wallet-v1 ]
   pull_request:
     branches: [ main ]
   workflow_dispatch:
