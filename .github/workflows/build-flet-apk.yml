@@ -30,8 +30,10 @@ jobs:
       - name: Checkout source
         uses: actions/checkout@v6
 
-      - name: Validate Python source syntax
-        run: python -m py_compile main.py backend/main.py wallet_engine.py auth_server.py
+      - name: Validate all application Python sources
+        run: |
+          python -m py_compile main.py backend/main.py wallet_engine.py auth_server.py scripts/get_microsoft_refresh_token.py
+          python -m compileall -q backend scripts
 
       - name: Build Android APK
         id: build
