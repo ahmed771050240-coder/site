@@ -1,35 +1,48 @@
-# SULTAN WALLET — Reown AppKit integration
+# SULTAN WALLET — Reown AppKit connector
 
-## Project configuration
+## Configuration
 
 - Reown Project ID: `d49f5ad010ca1d1451ec6eff23e61e0e`
-- Product: SULTAN WALLET
-- Intended Android package: `org.sultan.wallet`
-- Wallets: MetaMask and Trust Wallet through the WalletConnect network.
+- Flutter package: `reown_appkit: ^1.9.0`
+- Deep-link scheme: `sultanwallet://`
+- Supported wallet discovery: MetaMask and Trust Wallet through Reown / WalletConnect.
 
-The Project ID is a public application identifier. Never put private keys, recovery phrases, signing secrets, or user credentials in this file or in the app.
+The Project ID is a public application identifier. Never place private keys, recovery phrases, signing secrets, or user credentials in this project.
 
-## Current client architecture
+## Bridge implementation
 
-The Android client in this repository is a Python/Flet application (Flet 1.0.5). Reown's Android AppKit is a native Kotlin SDK; adding its Maven dependency to the Python requirements or placing the Project ID in Python does **not** integrate the SDK. The current Flet APK workflow does not compile a custom Kotlin Activity/Fragment or provide a verified method-channel bridge.
+The Android client is a Flet 1.0.5 application, so the connector is implemented as a Flet Flutter extension rather than importing the native Kotlin SDK into Python:
 
-## Required implementation before enabling the feature
+- Python control: `src/sultan_wallet_reown/`
+- Flutter extension: `src/flutter/sultan_wallet_reown/`
+- Reown AppKit modal: `ReownAppKitModal`
+- Android return links: Flutter `app_links` stream, with Flet's Android deep-link manifest configuration.
+- Wallet state sent to Python: public address, connected wallet display name, and selected chain ID.
+- UI: connect modal before connection; account control after connection.
 
-1. Add a native Android host/bridge that is actually included by the APK build.
-2. Integrate the official Reown Android AppKit SDK using its current Android BOM and documented initialization API.
-3. Configure the app metadata and a unique native redirect URI; register the matching Android intent filter.
-4. Expose only safe bridge methods to Flet: connect, current account, chain, disconnect, and connection state.
-5. Route WalletConnect deep links back to AppKit and dispatch them to the SDK.
-6. Never request, read, store, or transmit a wallet recovery phrase or private key.
-7. Do not submit transactions automatically. Any signing or transaction request must be shown to the user and explicitly approved in MetaMask/Trust Wallet.
-8. Add tests for connect, cancel/reject, reconnect, disconnect, unsupported chain, and malformed deep links.
+The Python app displays the connector on its home screen. The Flutter control handles wallet connection and dispatches connection, disconnection, and error events back to Python.
 
-## Feature status
+## Security boundaries
 
-**Not enabled in the production Flet APK yet.** This file records the supplied public Project ID and the verified integration boundary. Do not display a successful connection state until the native bridge has been built and device-tested.
+- The app never asks for, reads, stores, or transmits a recovery phrase or private key.
+- The app does not sign or submit transactions automatically.
+- Any transaction or signature request must be presented by the wallet and explicitly approved by the user.
+- A connected wallet is not a bank account and does not enable fiat deposits, withdrawals, card issuing, or bank transfers.
+
+## Build and verification status
+
+The connector source and APK build configuration are committed on branch `fix/android-ui-stability`. The GitHub Actions workflow includes this branch and the extension source paths.
+
+**Not yet verified in a built APK or on a physical Android device.** Before describing the feature as production-ready, build the APK and test:
+1. AppKit initialization with the configured Project ID.
+2. MetaMask connection and return-to-app deep link.
+3. Trust Wallet connection and return-to-app deep link.
+4. Account and chain display after connection.
+5. User cancellation, rejected connection, disconnect, app restart, and reconnect.
 
 ## Official references
 
-- Reown Android/Kotlin SDK: https://github.com/reown-com/reown-kotlin
-- Reown AppKit overview and framework support: https://docs.reown.com/
-- WalletConnect app integration overview: https://docs.walletconnect.com/apps
+- Reown Flutter AppKit: https://pub.dev/packages/reown_appkit
+- Reown Flutter examples: https://github.com/reown-com/reown_flutter
+- Flet extensions: https://flet.dev/docs/extend/user-extensions/
+- Flet Android deep links: https://flet.dev/docs/publish/
