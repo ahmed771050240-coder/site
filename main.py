@@ -1,358 +1,616 @@
-# SULTAN WALLET V4.1 - BANK - CRASH FIX
+"""SULTAN WALLET — professional client shell.
+
+The client never stores or creates financial balances. All account data is read
+from the authenticated HTTPS API. Unsupported regulated features are visibly
+marked unavailable rather than simulated.
+"""
+import os
 import flet as ft
-import sqlite3, hashlib, secrets, json, urllib.request, datetime, os, sys
 from wallet_api import WalletAPI, WalletAPIError
 
-API_BASE_URL = os.environ.get("SULTAN_WALLET_API_URL", "https://sultan-wallet-api.onrender.com").rstrip("/")
+API_BASE_URL = os.environ.get(
+    "SULTAN_WALLET_API_URL",
+    "https://sultan-wallet-api.onrender.com",
+).rstrip("/")
 
-CURRENCIES=["YER","SAR","USD","AED"]
-RATES_FALLBACK={"YER":1.0,"SAR":0.00066,"USD":0.0025,"AED":0.0092}
-GOVS=["صنعاء","عدن","تعز","حضرموت","الحديدة","إب","ذمار","مأرب","الجوف","شبوة","أبين","لحج","الضالع","البيضاء","حجة","صعدة","المحويت","عمران","ريمة","المهرة","سقطرى"]
-COUNTRIES=["اليمن","السعودية","الإمارات","قطر","الكويت","عمان","البحرين","الأردن","مصر","السودان","أخرى"]
+BG = "#080D18"
+PANEL = "#111B2E"
+PANEL_ALT = "#17243A"
+GOLD = "#D4AF37"
+GOLD_LIGHT = "#F2D477"
+WHITE = "#F8FAFC"
+MUTED = "#94A3B8"
+GREEN = "#10B981"
+RED = "#EF4444"
 
-SERVICES={
- "شحن جوال - اليمن": [{"name":"يمن موبايل 1000","price":1000,"cur":"YER","code":"YM-1000"},{"name":"سبأفون 1000","price":1000,"cur":"YER","code":"SABA-1000"},{"name":"MTN 1000","price":1000,"cur":"YER","code":"MTN-1000"},{"name":"YOU 1000","price":1000,"cur":"YER","code":"YOU-1000"}],
- "شحن جوال - السعودية": [{"name":"STC سوا 50","price":50,"cur":"SAR","code":"STC-50"},{"name":"موبايلي 30","price":30,"cur":"SAR","code":"MOB-30"},{"name":"زين السعودية 50","price":50,"cur":"SAR","code":"ZAIN-SA-50"}],
- "شحن جوال - الإمارات": [{"name":"Etisalat 50","price":50,"cur":"AED","code":"ETI-50"},{"name":"du 50","price":50,"cur":"AED","code":"DU-50"}],
- "شحن جوال - مصر": [{"name":"Vodafone مصر","price":50,"cur":"USD","code":"VOD-EG-50"},{"name":"Orange مصر","price":50,"cur":"USD","code":"ORG-EG-50"}],
- "شحن جوال - دول أخرى": [{"name":"Zain الكويت","price":5,"cur":"USD","code":"ZAIN-KW-5"},{"name":"Ooredoo قطر","price":5,"cur":"USD","code":"OOR-QA-5"},{"name":"Omantel عمان","price":5,"cur":"USD","code":"OMAN-5"}],
- "ألعاب وشحن عملات": [{"name":"PUBG 60 شدة","price":0.99,"cur":"USD","code":"PUBG-60"},{"name":"PUBG 660 شدة","price":9.99,"cur":"USD","code":"PUBG-660"},{"name":"Free Fire 1060 جوهرة","price":9.99,"cur":"USD","code":"FF-1060"},{"name":"TikTok 700 كوين","price":9.99,"cur":"USD","code":"TT-700"},{"name":"Roblox 400","price":4.99,"cur":"USD","code":"RB-400"}],
- "بطاقات واشتراكات": [{"name":"Google Play 10$","price":10,"cur":"USD","code":"GP-10"},{"name":"Apple 10$","price":10,"cur":"USD","code":"AP-10"},{"name":"Netflix شهر","price":9.99,"cur":"USD","code":"NF-1M"},{"name":"Shahid VIP","price":8.99,"cur":"USD","code":"SH-1M"},{"name":"ChatGPT Plus","price":20,"cur":"USD","code":"GPT-1M"}],
-}
-
-DB_PATH = None
-
-def get_db_path():
-    global DB_PATH
-    if DB_PATH: return DB_PATH
-    # حاول مجلدات قابلة للكتابة في أندرويد
-    for p in [os.path.expanduser("~"), "/data/data/com.sultan.wallet/files", "/storage/emulated/0/Download", "."]:
-        try:
-            test = os.path.join(p, "test_write.tmp")
-            with open(test, "w") as f: f.write("1")
-            os.remove(test)
-            DB_PATH = os.path.join(p, "sultan_wallet.db")
-            return DB_PATH
-        except: continue
-    DB_PATH = "sultan_wallet.db"
-    return DB_PATH
-
-def db():
-    path = get_db_path()
-    c=sqlite3.connect(path); c.row_factory=sqlite3.Row; return c
-def init_db():
-    try:
-        c=db()
-        c.executescript("""
-        CREATE TABLE IF NOT EXISTS users(id INTEGER PRIMARY KEY AUTOINCREMENT, phone TEXT UNIQUE, name TEXT, pass_hash TEXT, salt TEXT, pin_hash TEXT, created_at TEXT);
-        CREATE TABLE IF NOT EXISTS kyc(id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER UNIQUE, full_name TEXT, id_type TEXT, id_number TEXT, dob TEXT, birth_country TEXT, birth_governorate TEXT, birth_city TEXT, address TEXT, nationality TEXT, status TEXT DEFAULT 'pending', updated_at TEXT);
-        CREATE TABLE IF NOT EXISTS accounts(id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, currency TEXT, balance REAL DEFAULT 0, UNIQUE(user_id,currency));
-        CREATE TABLE IF NOT EXISTS ledger(id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, currency TEXT, amount REAL, type TEXT, ref TEXT UNIQUE, note TEXT, created_at TEXT);
-        CREATE TABLE IF NOT EXISTS transfers(id INTEGER PRIMARY KEY AUTOINCREMENT, from_user INTEGER, to_phone TEXT, currency TEXT, amount REAL, fee REAL, status TEXT, ref TEXT, created_at TEXT);
-        CREATE TABLE IF NOT EXISTS orders(id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, service_code TEXT, service_name TEXT, price REAL, currency TEXT, target TEXT, status TEXT, ref TEXT, created_at TEXT);
-        """)
-        c.commit(); c.close()
-    except Exception as e:
-        print(f"DB INIT ERROR: {e}")
-
-def hash_pw(pw,salt=None):
-    salt=salt or secrets.token_hex(16)
-    digest=hashlib.scrypt((salt+pw).encode(),salt=bytes.fromhex(salt),n=16384,r=8,p=1).hex()
-    return "scrypt$"+digest, salt
-def get_rates():
-    try:
-        with urllib.request.urlopen("https://open.er-api.com/v6/latest/YER",timeout=3) as r:
-            d=json.loads(r.read().decode()); rates=d.get("rates",{})
-            return {cur: float(rates.get(cur, RATES_FALLBACK[cur])) for cur in CURRENCIES}, "مباشر"
-    except: return dict(RATES_FALLBACK), "محفوظ"
 
 def main(page: ft.Page):
-    try:
-        init_db()
-        page.title="SULTAN WALLET"; page.rtl=True; page.theme_mode=ft.ThemeMode.DARK; page.bgcolor="#0A0A0C"; page.padding=0
-        NAVY="#0B1A2A"; GOLD="#D4AF37"; CARD="#14141A"; GREEN="#10B981"; RED="#EF4444"; WHITE="#FFFFFF"; MUTED="#9CA3AF"; LIGHT="#E5E7EB"
-        state={"user_id":None,"name":"","phone":"","api_token":None,"wallets":{},"rates":dict(RATES_FALLBACK),"rate_src":"محفوظ"}
-        api = WalletAPI(API_BASE_URL)
+    api = WalletAPI(API_BASE_URL)
+    state = {
+        "token": None,
+        "profile": None,
+        "wallets": [],
+        "capabilities": {},
+        "screen": 0,
+        "hide_balances": False,
+    }
+
+    page.title = "SULTAN WALLET"
+    page.bgcolor = BG
+    page.padding = 0
+    page.rtl = True
+    page.theme_mode = ft.ThemeMode.DARK
+
+    def notify(message):
         try:
-            rates,src=get_rates(); state["rates"]=rates; state["rate_src"]=src
-        except: pass
-        sel_cat={"cat":"شحن جوال - اليمن"}; sel_service={"item":None}
-
-        def snack(m):
-            try:
-                page.snack_bar=ft.SnackBar(ft.Text(m)); page.snack_bar.open=True; page.update()
-            except: print(m)
-        def bal(uid,cur):
-            try: return float(state.get("wallets", {}).get(cur, {}).get("balance", 0))
-            except (TypeError, ValueError): return 0.0
-        def ensure_accounts(uid):
-            # Balances are server-owned; never create or mutate customer balances on the device.
-            return None
-        def add_ledger(uid,cur,amount,typ,note):
-            ref=f"SW-{secrets.token_hex(4).upper()}"
-            c=db()
-            try:
-                c.execute("INSERT INTO accounts(user_id,currency,balance) VALUES(?,?,?) ON CONFLICT(user_id,currency) DO UPDATE SET balance=balance+excluded.balance",(uid,cur,amount))
-                r=c.execute("SELECT balance FROM accounts WHERE user_id=? AND currency=?",(uid,cur)).fetchone()
-                if r and r["balance"] < -0.0001: raise ValueError("الرصيد غير كافي")
-                c.execute("INSERT INTO ledger(user_id,currency,amount,type,ref,note,created_at) VALUES(?,?,?,?,?,?,?)",(uid,cur,amount,typ,ref,note,datetime.datetime.now().isoformat()))
-                c.commit(); return ref
-            except Exception as e: c.rollback(); raise e
-            finally: c.close()
-        def kyc_status(uid):
-            try:
-                c=db(); r=c.execute("SELECT * FROM kyc WHERE user_id=?",(uid,)).fetchone(); c.close(); return r
-            except: return None
-        def total_balance_yer():
-            total=0
-            for cur in CURRENCIES:
-                b=bal(state["user_id"],cur)
-                if cur=="YER": total+=b
-                else: total+= b / state["rates"].get(cur,1) if state["rates"].get(cur,0)!=0 else 0
-            return total
-
-        phone_f=ft.TextField(label="رقم الجوال", keyboard_type=ft.KeyboardType.PHONE, border_color=GOLD)
-        name_f=ft.TextField(label="الاسم الكامل", border_color=GOLD)
-        pass_f=ft.TextField(label="كلمة السر", password=True, can_reveal_password=True, border_color=GOLD)
-        pin_f=ft.TextField(label="رمز PIN - 4 أرقام", password=True, keyboard_type=ft.KeyboardType.NUMBER, max_length=4, border_color=GOLD)
-        kyc_name=ft.TextField(label="الاسم الكامل كما في الهوية *")
-        kyc_id_type=ft.Dropdown(label="نوع الوثيقة *", options=[ft.dropdown.Option("جواز سفر"), ft.dropdown.Option("بطاقة شخصية")], value="بطاقة شخصية")
-        kyc_id_num=ft.TextField(label="رقم الجواز / البطاقة *")
-        kyc_dob=ft.TextField(label="تاريخ الميلاد * YYYY-MM-DD", hint_text="1995-05-20")
-        kyc_birth_country=ft.Dropdown(label="دولة الميلاد *", options=[ft.dropdown.Option(x) for x in COUNTRIES], value="اليمن")
-        kyc_birth_gov=ft.Dropdown(label="محافظة الميلاد *", options=[ft.dropdown.Option(x) for x in GOVS], value="حضرموت")
-        kyc_birth_city=ft.TextField(label="مدينة / مكان الميلاد *", hint_text="المكلا")
-        kyc_nationality=ft.Dropdown(label="الجنسية *", options=[ft.dropdown.Option(x) for x in COUNTRIES], value="اليمن")
-        kyc_address=ft.TextField(label="العنوان الحالي *")
-        to_f=ft.TextField(label="رقم حساب المستفيد / الجوال"); amt_f=ft.TextField(label="المبلغ", keyboard_type=ft.KeyboardType.NUMBER)
-        cur_dd=ft.Dropdown(label="العملة", options=[ft.dropdown.Option(c) for c in CURRENCIES], value="YER")
-        transfer_type=ft.Dropdown(label="نوع التحويل", options=[ft.dropdown.Option("داخلي - حساب سلطان"), ft.dropdown.Option("خارجي - بنك محلي"), ft.dropdown.Option("دولي - SWIFT")], value="داخلي - حساب سلطان")
-        service_target=ft.TextField(label="رقم المستفيد *")
-
-        def accept_api_session(result):
-            token = result.get("access_token")
-            if not token: raise WalletAPIError("الخادم لم يُرجع رمز جلسة صالحاً")
-            state["api_token"] = token
-            profile = api.me(token)
-            state.update(user_id=profile["id"], name=profile["full_name"], phone=profile["phone"])
-            refresh_wallets()
-            show_home()
-        def refresh_wallets():
-            if not state.get("api_token"): return
-            result = api.wallets(state["api_token"])
-            state["wallets"] = {item["currency"]: item for item in result.get("wallets", [])}
-        def do_register(e):
-            if not phone_f.value or not name_f.value or not pass_f.value: snack("عبي الاسم ورقم الجوال وكلمة السر"); return
-            if len(pass_f.value)<12: snack("كلمة السر يجب أن تكون 12 حرفاً على الأقل"); return
-            try: accept_api_session(api.register(phone_f.value, name_f.value, pass_f.value))
-            except WalletAPIError as ex: snack(str(ex))
-            except Exception as ex: snack("تعذر الاتصال بالخادم"); print(ex)
-        def do_login(e):
-            if not phone_f.value or not pass_f.value: snack("أدخل رقم الجوال وكلمة السر"); return
-            try: accept_api_session(api.login(phone_f.value, pass_f.value))
-            except WalletAPIError as ex: snack(str(ex))
-            except Exception as ex: snack("تعذر الاتصال بالخادم"); print(ex)
-        def do_kyc(e):
-            snack("التحقق من الهوية غير متاح في النسخة التجريبية. لا تدخل بيانات هوية حقيقية.")
-            return
-            if not kyc_name.value or not kyc_id_num.value or not kyc_dob.value or not kyc_birth_city.value or not kyc_address.value: snack("عبي كل الحقول *"); return
-            try:
-                d=datetime.datetime.strptime(kyc_dob.value,"%Y-%m-%d"); age=(datetime.datetime.now()-d).days//365
-                if age<18: snack("يجب أن يكون العمر 18+"); return
-            except: snack("تاريخ الميلاد بصيغة YYYY-MM-DD"); return
-            try:
-                c=db(); c.execute("INSERT OR REPLACE INTO kyc(user_id,full_name,id_type,id_number,dob,birth_country,birth_governorate,birth_city,address,nationality,status,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",(state["user_id"],kyc_name.value,kyc_id_type.value,kyc_id_num.value.strip().upper(),kyc_dob.value,kyc_birth_country.value,kyc_birth_gov.value,kyc_birth_city.value,kyc_address.value,kyc_nationality.value,"pending",datetime.datetime.now().isoformat())); c.commit(); c.close(); show_kyc_status()
-            except Exception as ex: snack(str(ex))
-        def approve_demo():
-            snack("لا يمكن اعتماد الهوية تلقائياً. يلزم فحص فعلي من جهة مخولة.")
-        def do_transfer(e):
-            snack("التحويلات متوقفة حتى ربط مزود دفع مرخص وخادم آمن.")
-            return
-            k=kyc_status(state["user_id"])
-            if not k or k["status"]!="approved": snack("أكمل التحقق من الهوية أولاً"); show_kyc(); return
-            try:
-                amt=float(amt_f.value or 0)
-                if amt<=0 or not to_f.value: snack("عبي المبلغ والمستفيد"); return
-                cur=cur_dd.value
-                if bal(state["user_id"],cur)<amt: snack("الرصيد غير كافي"); return
-                fee=round(amt*0.005,2); ref=add_ledger(state["user_id"],cur,-amt,"transfer_out",f"تحويل إلى {to_f.value}")
-                c=db(); r=c.execute("SELECT id FROM users WHERE phone=?",(to_f.value,)).fetchone(); c.close()
-                if r and "داخلي" in transfer_type.value: ensure_accounts(r["id"]); add_ledger(r["id"],cur,amt-fee,"transfer_in",f"من {state['phone']}"); status="تم"
-                else: status="قيد المعالجة"
-                c=db(); c.execute("INSERT INTO transfers(from_user,to_phone,currency,amount,fee,status,ref,created_at) VALUES(?,?,?,?,?,?,?,?)",(state["user_id"],to_f.value,cur,amt,fee,status,ref,datetime.datetime.now().isoformat())); c.commit(); c.close()
-                snack(f"تم التحويل - {ref}"); show_receipt(ref, amt, cur, fee, to_f.value, status)
-            except Exception as ex: snack(str(ex)); print(ex)
-
-        def bank_card(cur):
-            b=bal(state["user_id"],cur) if state["user_id"] else 0
-            sym={"YER":"ر.ي","SAR":"ر.س","USD":"$","AED":"د.إ"}[cur]
-            acc_num=f"1001-{state['user_id'] or 0:04d}-{cur}"
-            return ft.Container(width=330,height=190,border_radius=18,gradient=ft.LinearGradient(begin=ft.alignment.top_left,end=ft.alignment.bottom_right,colors=[NAVY, CARD]),padding=18,content=ft.Column([
-                ft.Row([ft.Text("SULTAN WALLET",size=13,weight="bold",color=GOLD), ft.Text("DEMO • ليست بطاقة مصرفية",size=10,weight="bold",color=WHITE)]),
-                ft.Text(cur,size=14,color=MUTED), ft.Text(f"{b:,.2f} {sym}",size=28,weight="bold",color=WHITE),
-                ft.Text(f"معرّف تجريبي: {acc_num}",size=12,color=LIGHT),
-                ft.Text("رصيد تجريبي محلي — لا يمثل أموالاً حقيقية",size=10,color=MUTED)
-            ]))
-        def topup(cur):
-            snack("الإيداع غير متاح: لا يوجد مزود دفع مربوط. لا يمكن إنشاء رصيد من التطبيق.")
-        def cards_row(): return ft.Row(scroll=ft.ScrollMode.AUTO, controls=[bank_card(c) for c in CURRENCIES])
-        def history_text():
-            if not state["user_id"]: return "سجل دخول"
-            try:
-                c=db(); rows=c.execute("SELECT * FROM ledger WHERE user_id=? ORDER BY id DESC LIMIT 15",(state["user_id"],)).fetchall(); c.close()
-                return "\n".join([f"{r['created_at'][:16]} | {r['type']} | {r['amount']:+.2f} {r['currency']} | {r['ref']}" for r in rows]) if rows else "لا توجد عمليات"
-            except: return "لا توجد عمليات"
-        def orders_text():
-            try:
-                c=db(); rows=c.execute("SELECT * FROM orders WHERE user_id=? ORDER BY id DESC LIMIT 10",(state["user_id"],)).fetchall(); c.close()
-                return "\n".join([f"{r['service_name']} | {r['price']} {r['currency']} | إلى {r['target']} | {r['ref']}" for r in rows]) if rows else "لا توجد طلبات"
-            except: return "لا توجد طلبات"
-        history_label=ft.Text("",size=12,color=WHITE); orders_label=ft.Text("",size=12,color=WHITE); home_cards=ft.Column([])
-        def refresh_home():
-            try:
-                refresh_wallets()
-                home_cards.controls=[cards_row()]
-                history_label.value="سجل العمليات سيظهر هنا عند تفعيل دفتر الأستاذ في الخادم."
-                orders_label.value="لا توجد طلبات خدمات مفعّلة."
-                page.update()
-            except WalletAPIError as ex:
-                history_label.value=f"تعذر تحديث الأرصدة: {ex}"
-                page.update()
-            except Exception as ex: print(f"refresh err {ex}")
-        def go_transfer(cur=None):
-            if cur: cur_dd.value=cur
-            show_transfer()
-
-        def header(title):
-            return ft.Container(bgcolor=NAVY, padding=16, content=ft.Row([ft.Text("SULTAN WALLET", size=20, weight="bold", color=GOLD), ft.Text(title, size=14, color=WHITE)]))
-        def show_auth():
-            page.controls.clear()
-            page.add(ft.Container(padding=20, content=ft.Column([
-                ft.Container(bgcolor=NAVY, padding=20, border_radius=18, content=ft.Column([
-                    ft.Text("SULTAN WALLET", size=32, weight="bold", color=GOLD, text_align="center"),
-                    ft.Text("واجهة محفظة متعددة العملات متصلة بالخادم", size=14, color=WHITE, text_align="center"),
-                    ft.Text("YER • SAR • USD • AED", size=13, color=MUTED, text_align="center"),
-                ])),
-                name_f, phone_f, pass_f,
-                ft.ElevatedButton("فتح حساب جديد", bgcolor=GOLD, color="black", width=400, on_click=do_register),
-                ft.ElevatedButton("دخول", bgcolor=CARD, color=WHITE, width=400, on_click=do_login),
-                ft.Text("أرصدة العرض ليست أموالاً حقيقية. التحويلات والإيداع والسحب غير مفعّلة.", size=11, color=MUTED, text_align="center"),
-            ]))); page.update()
-        def show_kyc():
-            page.controls.clear(); page.add(ft.Container(padding=20, content=ft.Column([
-                header("التحقق من الهوية - KYC"),
-                ft.Text("نموذج KYC تجريبي غير متصل بجهة تحقق. لا تدخل بيانات هوية حقيقية.", size=13, color=MUTED),
-                kyc_name, kyc_id_type, kyc_id_num, kyc_dob,
-                ft.Text("مكان الميلاد", size=16, weight="bold", color=GOLD), kyc_birth_country, kyc_birth_gov, kyc_birth_city,
-                kyc_nationality, kyc_address,
-                ft.ElevatedButton("حفظ طلب تجريبي", bgcolor=GOLD, color="black", width=400, on_click=do_kyc),
-                ft.TextButton("تخطي لاحقاً", on_click=lambda e: show_home()),
-            ], scroll=ft.ScrollMode.AUTO))); page.update()
-        def show_kyc_status():
-            k=kyc_status(state["user_id"]); txt="قيد المراجعة البنكية" if k and k["status"]=="pending" else "تم التحقق - حسابك مفعل ✅"
-            page.controls.clear(); page.add(ft.Container(padding=20, content=ft.Column([
-                header("حالة الحساب"),
-                ft.Text(txt, size=16, color=GOLD),
-                ft.Text(f"{k['full_name'] if k else ''}\n{k['id_type'] if k else ''} - {k['id_number'] if k else ''}\nالميلاد: {k['dob'] if k else ''}", size=13, color=WHITE),
-                ft.ElevatedButton("دخول للواجهة التجريبية", bgcolor=CARD, color=WHITE, width=400, on_click=lambda e: show_home()),
-                ft.ElevatedButton("تعديل البيانات", bgcolor=CARD, color=WHITE, width=400, on_click=lambda e: show_kyc()),
-                ft.TextButton("خروج", on_click=lambda e: show_auth()),
-            ]))); page.update()
-        def show_home():
-            total=total_balance_yer()
-            page.controls.clear(); page.add(ft.Container(padding=16, content=ft.Column([
-                header(f"أهلاً {state['name']}"),
-                ft.Container(bgcolor=NAVY, padding=16, border_radius=16, content=ft.Column([
-                    ft.Text("إجمالي الأرصدة (بالريال اليمني تقريباً)", size=12, color=MUTED),
-                    ft.Text(f"{total:,.2f} ر.ي", size=26, weight="bold", color=WHITE),
-                    ft.Text(f"أسعار الصرف: {state['rate_src']}", size=11, color=MUTED),
-                ])),
-                ft.Text("حساباتي - اسحب يمين / يسار", size=14, weight="bold", color=GOLD),
-                home_cards,
-                ft.Text("خدمات بنكية", size=16, weight="bold", color=GOLD),
-                ft.Row([ft.ElevatedButton("💸 تحويل", bgcolor=GOLD, color="black", width=110, on_click=lambda e: show_transfer()),
-                        ft.ElevatedButton("📱 شحن", bgcolor=CARD, color=WHITE, width=110, on_click=lambda e: show_services_cat("شحن جوال - اليمن")),
-                        ft.ElevatedButton("🎮 ألعاب", bgcolor=CARD, color=WHITE, width=110, on_click=lambda e: show_services_cat("ألعاب وشحن عملات"))]),
-                ft.Row([ft.ElevatedButton("💳 بطاقات", bgcolor=CARD, color=WHITE, width=110, on_click=lambda e: show_services_cat("بطاقات واشتراكات")),
-                        ft.ElevatedButton("🌍 دولي", bgcolor=CARD, color=WHITE, width=110, on_click=lambda e: show_services_cat("شحن جوال - دول أخرى")),
-                        ft.ElevatedButton("🪪 حسابي", bgcolor=CARD, color=WHITE, width=110, on_click=lambda e: show_kyc_status())]),
-                ft.Text("كشف الحساب", size=16, weight="bold", color=GOLD), history_label,
-                ft.Text("طلبات الخدمات", size=16, weight="bold", color=GOLD), orders_label,
-                ft.Text("الخادم: PostgreSQL API • الأرصدة الحالية تجريبية فقط • لا توجد حركة أموال حقيقية", size=11, color=MUTED),
-            ]))); refresh_home()
-        def show_transfer():
-            page.controls.clear(); page.add(ft.Container(padding=20, content=ft.Column([
-                header("التحويلات — غير مفعلة"),
-                transfer_type, to_f, amt_f, cur_dd,
-                ft.ElevatedButton("تأكيد التحويل", bgcolor=GOLD, color="black", width=400, on_click=do_transfer),
-                ft.ElevatedButton("رجوع", bgcolor=CARD, color=WHITE, width=400, on_click=lambda e: show_home()),
-                ft.Text("التحويلات غير مفعلة في هذه النسخة التجريبية", size=11, color=MUTED),
-            ]))); page.update()
-        def show_receipt(ref, amt, cur, fee, to_phone, status):
-            page.controls.clear(); page.add(ft.Container(padding=20, content=ft.Column([
-                header("إيصال التحويل"),
-                ft.Container(bgcolor=CARD, padding=16, border_radius=16, content=ft.Column([
-                    ft.Text("إشعار عملية تجريبية", size=20, weight="bold", color=GREEN),
-                    ft.Text(f"المبلغ: {amt} {cur}", size=16, color=WHITE),
-                    ft.Text(f"إلى: {to_phone}", size=14, color=WHITE),
-                    ft.Text(f"الرسوم: {fee} {cur}", size=14, color=WHITE),
-                    ft.Text(f"الرقم المرجعي: {ref}", size=14, weight="bold", color=GOLD),
-                    ft.Text(f"الحالة: {status}", size=14, color=WHITE),
-                    ft.Text(f"التاريخ: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M')}", size=12, color=MUTED),
-                ])),
-                ft.ElevatedButton("رجوع للرئيسية", bgcolor=GOLD, color="black", width=400, on_click=lambda e: show_home()),
-            ]))); page.update()
-        def show_services_cat(cat):
-            sel_cat["cat"]=cat; show_services()
-        def show_services():
-            def on_cat(cat): sel_cat["cat"]=cat; show_services()
-            def on_pick(item): sel_service["item"]=item; show_services()
-            cats=list(SERVICES.keys())
-            cat_row=ft.Row(scroll=ft.ScrollMode.AUTO, controls=[ft.ElevatedButton(c, bgcolor=GOLD if c==sel_cat["cat"] else CARD, color="black" if c==sel_cat["cat"] else WHITE, on_click=lambda e, c=c: on_cat(c)) for c in cats])
-            items=SERVICES[sel_cat["cat"]]
-            cards=[]
-            for it in items:
-                sel = sel_service["item"] and sel_service["item"]["code"]==it["code"]
-                cards.append(ft.Container(width=340, border_radius=14, bgcolor=GREEN if sel else CARD, padding=12, on_click=lambda e, it=it: on_pick(it), content=ft.Column([
-                    ft.Text(it["name"], size=15, weight="bold", color="black" if sel else WHITE),
-                    ft.Text(f"السعر: {it['price']} {it['cur']} • كود: {it['code']}", size=12, color="black" if sel else GOLD),
-                ])))
-            sel_txt=f"المختار: {sel_service['item']['name']} - {sel_service['item']['price']} {sel_service['item']['cur']}" if sel_service["item"] else "اختر خدمة"
-            page.controls.clear(); page.add(ft.Container(padding=16, content=ft.Column([
-                header("الخدمات البنكية"),
-                cat_row,
-                ft.Column(cards, scroll=ft.ScrollMode.AUTO, height=320),
-                ft.Text(sel_txt, size=14, weight="bold", color=GOLD),
-                service_target,
-                ft.ElevatedButton("تأكيد الدفع من الحساب", bgcolor=GOLD, color="black", width=400, on_click=buy_service),
-                ft.ElevatedButton("رجوع", bgcolor=CARD, color=WHITE, width=400, on_click=lambda e: show_home()),
-            ], scroll=ft.ScrollMode.AUTO))); page.update()
-        def buy_service(e):
-            snack("شراء الخدمات متوقف حتى ربط مزود شحن حقيقي والتحقق من الدفع.")
-            return
-            item=sel_service["item"]
-            if not item: snack("اختر خدمة"); return
-            if not service_target.value: snack("اكتب رقم المستفيد"); return
-            k=kyc_status(state["user_id"])
-            if not k or k["status"]!="approved": snack("أكمل التحقق أولاً"); show_kyc(); return
-            cur=item["cur"]; price=item["price"]
-            if bal(state["user_id"],cur) < price: snack(f"الرصيد غير كافي - تحتاج {price} {cur}"); return
-            try:
-                ref=add_ledger(state["user_id"],cur,-price,"service_buy",f"{item['name']} -> {service_target.value}")
-                c=db(); c.execute("INSERT INTO orders(user_id,service_code,service_name,price,currency,target,status,ref,created_at) VALUES(?,?,?,?,?,?,?,?,?)",(state["user_id"],item["code"],item["name"],price,cur,service_target.value,"تم",ref,datetime.datetime.now().isoformat())); c.commit(); c.close()
-                snack(f"تم الدفع ✅ {item['name']} - {ref}"); show_home()
-            except Exception as ex: snack(str(ex)); print(ex)
-
-        show_auth()
-    except Exception as e:
-        print(f"FATAL: {e}")
-        import traceback; traceback.print_exc()
-        try:
-            page.controls.clear()
-            page.add(ft.Text(f"خطأ بدء: {e}", color="red"))
+            page.show_dialog(
+                ft.SnackBar(content=ft.Text(str(message)), bgcolor=PANEL_ALT)
+            )
+        except Exception:
+            status.value = str(message)
             page.update()
-        except: pass
+
+    def load_account(token):
+        profile = api.me(token)
+        wallet_result = api.wallets(token)
+        capabilities = api.capabilities()
+        state["token"] = token
+        state["profile"] = profile
+        state["wallets"] = wallet_result.get("wallets", [])
+        state["capabilities"] = capabilities
+        return profile
+
+    def auth_screen():
+        page.navigation_bar = None
+        page.appbar = None
+        name_field = ft.TextField(
+            label="الاسم الكامل",
+            border_color=GOLD,
+            text_size=15,
+        )
+        phone_field = ft.TextField(
+            label="رقم الهاتف مع مفتاح الدولة",
+            hint_text="+967 أو +966 أو +971",
+            keyboard_type=ft.KeyboardType.PHONE,
+            border_color=GOLD,
+        )
+        password_field = ft.TextField(
+            label="كلمة المرور",
+            password=True,
+            can_reveal_password=True,
+            border_color=GOLD,
+        )
+        status = ft.Text(
+            "سجّل الدخول أو أنشئ حساباً للاتصال الآمن بالخادم",
+            color=MUTED,
+            size=12,
+            text_align=ft.TextAlign.CENTER,
+        )
+        login_button = ft.Button(
+            "تسجيل الدخول",
+            icon=ft.Icons.LOGIN,
+            bgcolor=GOLD,
+            color="#111111",
+            expand=True,
+        )
+        register_button = ft.Button(
+            "إنشاء حساب",
+            icon=ft.Icons.PERSON_ADD,
+            bgcolor=PANEL_ALT,
+            color=WHITE,
+            expand=True,
+        )
+
+        def submit(mode):
+            phone = (phone_field.value or "").strip()
+            password = password_field.value or ""
+            full_name = (name_field.value or "").strip()
+
+            if not phone or not password:
+                status.value = "أدخل رقم الهاتف وكلمة المرور"
+                page.update()
+                return
+            if mode == "register":
+                if len(full_name) < 2:
+                    status.value = "أدخل الاسم الكامل"
+                    page.update()
+                    return
+                if len(password) < 12:
+                    status.value = "كلمة المرور يجب أن تكون 12 حرفاً على الأقل"
+                    page.update()
+                    return
+
+            login_button.disabled = True
+            register_button.disabled = True
+            status.value = "جارٍ الاتصال بالخادم الآمن..."
+            page.update()
+            try:
+                result = (
+                    api.register(phone, full_name, password)
+                    if mode == "register"
+                    else api.login(phone, password)
+                )
+                token = result.get("access_token")
+                if not token:
+                    raise WalletAPIError("الخادم لم يُرجع رمز جلسة صالحاً")
+                load_account(token)
+                app_screen()
+            except WalletAPIError as exc:
+                status.value = str(exc)
+                login_button.disabled = False
+                register_button.disabled = False
+                page.update()
+            except Exception:
+                status.value = "تعذر إكمال الطلب. تحقق من اتصال الخادم وحاول مجدداً."
+                login_button.disabled = False
+                register_button.disabled = False
+                page.update()
+
+        login_button.on_click = lambda e: submit("login")
+        register_button.on_click = lambda e: submit("register")
+
+        page.controls.clear()
+        page.add(
+            ft.Container(
+                expand=True,
+                alignment=ft.alignment.center,
+                padding=22,
+                content=ft.Container(
+                    width=520,
+                    padding=22,
+                    border_radius=24,
+                    bgcolor=PANEL,
+                    content=ft.Column(
+                        horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                        spacing=16,
+                        controls=[
+                            ft.Icon(
+                                ft.Icons.ACCOUNT_BALANCE_WALLET,
+                                size=58,
+                                color=GOLD,
+                            ),
+                            ft.Text(
+                                "SULTAN WALLET",
+                                size=27,
+                                weight=ft.FontWeight.BOLD,
+                                color=GOLD,
+                            ),
+                            ft.Text(
+                                "محفظة متعددة العملات — اليمن والسعودية والإمارات",
+                                size=13,
+                                color=MUTED,
+                                text_align=ft.TextAlign.CENTER,
+                            ),
+                            ft.Row(
+                                alignment=ft.MainAxisAlignment.CENTER,
+                                controls=[
+                                    ft.Text("YER", color=GOLD),
+                                    ft.Text("• SAR • AED • USD", color=MUTED),
+                                ],
+                            ),
+                            name_field,
+                            phone_field,
+                            password_field,
+                            ft.Row(controls=[login_button, register_button]),
+                            status,
+                            ft.Text(
+                                "الأرصدة المعروضة حسابات تجريبية على الخادم. "
+                                "الإيداع والسحب والتحويلات والبطاقات غير مفعّلة "
+                                "حتى اكتمال اعتماد وربط مزودي الخدمات المالية.",
+                                size=11,
+                                color=MUTED,
+                                text_align=ft.TextAlign.CENTER,
+                            ),
+                        ],
+                    ),
+                ),
+            )
+        )
+        page.update()
+
+    def refresh_account():
+        token = state.get("token")
+        if not token:
+            auth_screen()
+            return
+        try:
+            load_account(token)
+            render_screen()
+        except WalletAPIError as exc:
+            notify(exc)
+        except Exception:
+            notify("تعذر تحديث بيانات الحساب من الخادم")
+
+    def title_bar(title):
+        profile = state.get("profile") or {}
+        return ft.Container(
+            padding=ft.padding.only(left=16, right=16, top=14, bottom=14),
+            bgcolor=PANEL,
+            border_radius=18,
+            content=ft.Row(
+                alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+                controls=[
+                    ft.Column(
+                        spacing=2,
+                        controls=[
+                            ft.Text(
+                                "SULTAN WALLET",
+                                size=16,
+                                weight=ft.FontWeight.BOLD,
+                                color=GOLD,
+                            ),
+                            ft.Text(title, size=12, color=MUTED),
+                        ],
+                    ),
+                    ft.Text(
+                        profile.get("full_name", ""),
+                        size=12,
+                        color=WHITE,
+                    ),
+                ],
+            ),
+        )
+
+    def money_text(value, currency):
+        if state["hide_balances"]:
+            return "••••••"
+        return f"{value} {currency}"
+
+    def wallet_tile(item):
+        currency = item.get("currency", "—")
+        balance = item.get("balance", "0.00")
+        status_value = item.get("status", "unknown")
+        return ft.Container(
+            padding=16,
+            border_radius=16,
+            bgcolor=PANEL,
+            border=ft.Border.all(1, "#263650"),
+            content=ft.Row(
+                alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+                controls=[
+                    ft.Column(
+                        spacing=5,
+                        controls=[
+                            ft.Text(
+                                currency,
+                                size=17,
+                                weight=ft.FontWeight.BOLD,
+                                color=GOLD_LIGHT,
+                            ),
+                            ft.Text(
+                                "حساب متعدد العملات",
+                                size=11,
+                                color=MUTED,
+                            ),
+                        ],
+                    ),
+                    ft.Column(
+                        horizontal_alignment=ft.CrossAxisAlignment.END,
+                        spacing=5,
+                        controls=[
+                            ft.Text(
+                                money_text(balance, currency),
+                                size=18,
+                                weight=ft.FontWeight.BOLD,
+                                color=WHITE,
+                            ),
+                            ft.Text(
+                                "تجريبي" if status_value == "demo" else status_value,
+                                size=11,
+                                color=MUTED,
+                            ),
+                        ],
+                    ),
+                ],
+            ),
+        )
+
+    def home_screen():
+        profile = state.get("profile") or {}
+        wallets = state.get("wallets") or []
+        return ft.Column(
+            spacing=16,
+            scroll=ft.ScrollMode.AUTO,
+            controls=[
+                title_bar("الرئيسية"),
+                ft.Container(
+                    padding=20,
+                    border_radius=20,
+                    bgcolor=PANEL_ALT,
+                    border=ft.Border.all(1, "#6C5924"),
+                    content=ft.Column(
+                        spacing=12,
+                        controls=[
+                            ft.Row(
+                                alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+                                controls=[
+                                    ft.Text("حسابك في سلطان واليت", color=MUTED),
+                                    ft.IconButton(
+                                        ft.Icons.VISIBILITY_OFF
+                                        if state["hide_balances"]
+                                        else ft.Icons.VISIBILITY,
+                                        icon_color=GOLD,
+                                        on_click=toggle_balances,
+                                    ),
+                                ],
+                            ),
+                            ft.Text(
+                                profile.get("full_name", "مرحباً"),
+                                size=23,
+                                weight=ft.FontWeight.BOLD,
+                                color=WHITE,
+                            ),
+                            ft.Text(
+                                "الأرصدة مفصولة حسب العملة ولا يتم جمعها دون سعر صرف موثوق.",
+                                size=11,
+                                color=MUTED,
+                            ),
+                            ft.Row(
+                                controls=[
+                                    ft.Button(
+                                        "تحديث البيانات",
+                                        icon=ft.Icons.REFRESH,
+                                        bgcolor=GOLD,
+                                        color="#111111",
+                                        on_click=lambda e: refresh_account(),
+                                    ),
+                                    ft.Button(
+                                        "الملف الشخصي",
+                                        icon=ft.Icons.PERSON,
+                                        bgcolor=PANEL,
+                                        color=WHITE,
+                                        on_click=lambda e: go_screen(4),
+                                    ),
+                                ],
+                            ),
+                        ],
+                    ),
+                ),
+                ft.Text(
+                    "ملخص المحافظ",
+                    size=18,
+                    weight=ft.FontWeight.BOLD,
+                    color=GOLD,
+                ),
+                *([wallet_tile(item) for item in wallets] or [
+                    ft.Text("لا توجد حسابات عملات متاحة حالياً.", color=MUTED)
+                ]),
+                ft.Container(
+                    padding=14,
+                    border_radius=14,
+                    bgcolor="#192536",
+                    content=ft.Text(
+                        "حالة المنصة: حسابات عرض تجريبية. لا توجد أموال حقيقية "
+                        "ولا يمكن تنفيذ حركة مالية حالياً.",
+                        color=MUTED,
+                        size=12,
+                    ),
+                ),
+            ],
+        )
+
+    def wallets_screen():
+        wallets = state.get("wallets") or []
+        return ft.Column(
+            spacing=14,
+            scroll=ft.ScrollMode.AUTO,
+            controls=[
+                title_bar("المحافظ والعملات"),
+                ft.Text(
+                    "كل عملة لها حساب مستقل. الرصيد يأتي من الخادم فقط.",
+                    size=12,
+                    color=MUTED,
+                ),
+                *([wallet_tile(item) for item in wallets] or [
+                    ft.Text("لم يُرجع الخادم حسابات بعد.", color=MUTED)
+                ]),
+                ft.Text(
+                    "العملات المدعومة في بنية الحساب: YER • SAR • AED • USD",
+                    size=12,
+                    color=GOLD_LIGHT,
+                ),
+            ],
+        )
+
+    def transfers_screen():
+        return ft.Column(
+            spacing=14,
+            scroll=ft.ScrollMode.AUTO,
+            controls=[
+                title_bar("التحويلات"),
+                ft.Icon(ft.Icons.LOCK, size=42, color=GOLD),
+                ft.Text(
+                    "التحويلات غير مفعّلة حالياً",
+                    size=20,
+                    weight=ft.FontWeight.BOLD,
+                    color=WHITE,
+                ),
+                ft.Text(
+                    "لن نعرض زر تحويل يوهمك بأن الأموال تنتقل. "
+                    "يلزم استكمال دفتر أستاذ مزدوج القيد، ومراجعة الأمان، "
+                    "وربط مزود تحويل مرخص واختبار التسوية قبل تشغيل هذه الخدمة.",
+                    color=MUTED,
+                    size=13,
+                ),
+                ft.Container(
+                    padding=16,
+                    bgcolor=PANEL,
+                    border_radius=14,
+                    content=ft.Text(
+                        "الحالة التقنية: واجهة التحويل قيد التجهيز — "
+                        "لا يوجد مسار تحويل مالي منشور في API الحالي.",
+                        color=GOLD_LIGHT,
+                        size=12,
+                    ),
+                ),
+            ],
+        )
+
+    def activity_screen():
+        return ft.Column(
+            spacing=14,
+            scroll=ft.ScrollMode.AUTO,
+            controls=[
+                title_bar("سجل العمليات"),
+                ft.Icon(ft.Icons.RECEIPT_LONG, size=42, color=GOLD),
+                ft.Text(
+                    "لا توجد عمليات مسجلة",
+                    size=19,
+                    weight=ft.FontWeight.BOLD,
+                    color=WHITE,
+                ),
+                ft.Text(
+                    "سجل العمليات سيظهر هنا بعد إضافة دفتر الأستاذ "
+                    "ومسارات العمليات المعتمدة على الخادم. لا نعرض "
+                    "حركات وهمية أو بيانات ثابتة.",
+                    color=MUTED,
+                    size=13,
+                ),
+            ],
+        )
+
+    def profile_screen():
+        profile = state.get("profile") or {}
+        caps = state.get("capabilities") or {}
+        rows = [
+            ("الاسم", profile.get("full_name", "—")),
+            ("رقم الهاتف", profile.get("phone", "—")),
+            ("حالة الحساب", profile.get("status", "—")),
+            ("التحقق من الهوية KYC", "غير مربوط بعد"),
+            ("التحقق الثنائي 2FA", "غير مفعّل"),
+        ]
+        return ft.Column(
+            spacing=14,
+            scroll=ft.ScrollMode.AUTO,
+            controls=[
+                title_bar("الملف الشخصي والأمان"),
+                *[
+                    ft.Container(
+                        padding=13,
+                        bgcolor=PANEL,
+                        border_radius=12,
+                        content=ft.Row(
+                            alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+                            controls=[
+                                ft.Text(label, color=MUTED, size=12),
+                                ft.Text(value, color=WHITE, size=12),
+                            ],
+                        ),
+                    )
+                    for label, value in rows
+                ],
+                ft.Text(
+                    "حالة مزايا المنصة",
+                    size=16,
+                    weight=ft.FontWeight.BOLD,
+                    color=GOLD,
+                ),
+                *[
+                    ft.Container(
+                        padding=12,
+                        bgcolor=PANEL,
+                        border_radius=12,
+                        content=ft.Row(
+                            alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+                            controls=[
+                                ft.Text(label, color=WHITE, size=12),
+                                ft.Text(
+                                    "متاح تقنياً" if enabled else "غير مفعّل",
+                                    color=GREEN if enabled else MUTED,
+                                    size=12,
+                                ),
+                            ],
+                        ),
+                    )
+                    for label, enabled in [
+                        ("التسجيل والدخول", caps.get("authentication", False)),
+                        ("قراءة المحافظ", caps.get("wallet_read", False)),
+                        ("الإيداع", caps.get("deposits", False)),
+                        ("السحب", caps.get("withdrawals", False)),
+                        ("التحويلات", caps.get("transfers", False)),
+                        ("إصدار البطاقات", caps.get("card_issuing", False)),
+                        ("تنفيذ الخدمات", caps.get("service_fulfillment", False)),
+                    ]
+                ],
+                ft.Button(
+                    "تحديث بيانات الحساب",
+                    icon=ft.Icons.REFRESH,
+                    bgcolor=PANEL_ALT,
+                    color=WHITE,
+                    on_click=lambda e: refresh_account(),
+                ),
+                ft.Button(
+                    "تسجيل الخروج",
+                    icon=ft.Icons.LOGOUT,
+                    bgcolor="#5B2028",
+                    color=WHITE,
+                    on_click=lambda e: logout(),
+                ),
+            ],
+        )
+
+    def toggle_balances(e):
+        state["hide_balances"] = not state["hide_balances"]
+        render_screen()
+
+    def go_screen(index):
+        state["screen"] = index
+        render_screen()
+
+    def logout():
+        state.update(
+            token=None,
+            profile=None,
+            wallets=[],
+            capabilities={},
+            screen=0,
+        )
+        auth_screen()
+
+    def render_screen():
+        index = state["screen"]
+        screens = [
+            home_screen,
+            wallets_screen,
+            transfers_screen,
+            activity_screen,
+            profile_screen,
+        ]
+        labels = ["الرئيسية", "المحافظ", "التحويلات", "السجل", "حسابي"]
+        icons = [
+            ft.Icons.HOME_OUTLINED,
+            ft.Icons.ACCOUNT_BALANCE_WALLET_OUTLINED,
+            ft.Icons.SEND_OUTLINED,
+            ft.Icons.HISTORY,
+            ft.Icons.PERSON_OUTLINE,
+        ]
+        page.controls.clear()
+        page.appbar = None
+        page.navigation_bar = ft.NavigationBar(
+            bgcolor=PANEL,
+            selected_index=index,
+            on_change=lambda e: go_screen(e.control.selected_index),
+            destinations=[
+                ft.NavigationBarDestination(icon=icons[i], label=labels[i])
+                for i in range(len(labels))
+            ],
+        )
+        page.add(
+            ft.Container(
+                expand=True,
+                padding=16,
+                bgcolor=BG,
+                content=screens[index](),
+            )
+        )
+        page.update()
+
+    def app_screen():
+        state["screen"] = 0
+        render_screen()
+
+    auth_screen()
 
 
-# Flet 1.x entry point; do not use the removed ft.app API.
-ft.run(main)
+if __name__ == "__main__":
+    ft.run(main)
