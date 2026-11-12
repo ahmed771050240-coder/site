@@ -1,4 +1,7 @@
-"""Small HTTPS client for the SULTAN WALLET API. No financial state is stored here."""
+"""HTTPS client for the SULTAN WALLET API.
+
+The client contains no local financial ledger and never mutates balances.
+"""
 from __future__ import annotations
 
 import json
@@ -25,9 +28,11 @@ class WalletAPI:
             headers["Content-Type"] = "application/json"
         if token:
             headers["Authorization"] = "Bearer " + token
-        req = urllib.request.Request(self.base_url + path, data=body, headers=headers, method=method)
+        request = urllib.request.Request(
+            self.base_url + path, data=body, headers=headers, method=method
+        )
         try:
-            with self.opener(req, timeout=self.timeout) as response:
+            with self.opener(request, timeout=self.timeout) as response:
                 raw = response.read()
             result = json.loads(raw.decode("utf-8")) if raw else {}
             if not isinstance(result, dict):
@@ -35,24 +40,41 @@ class WalletAPI:
             return result
         except urllib.error.HTTPError as exc:
             try:
-                detail = json.loads(exc.read().decode("utf-8")).get("detail", "تعذر تنفيذ الطلب")
+                payload = json.loads(exc.read().decode("utf-8"))
+                detail = payload.get("detail", "تعذر تنفيذ الطلب")
             except Exception:
                 detail = "تعذر تنفيذ الطلب"
             raise WalletAPIError(str(detail)) from None
         except (urllib.error.URLError, TimeoutError, OSError):
-            raise WalletAPIError("الخادم غير متاح حالياً؛ تحقق من الاتصال وحاول لاحقاً") from None
+            raise WalletAPIError(
+                "الخادم غير متاح حالياً؛ تحقق من الاتصال وحاول لاحقاً"
+            ) from None
         except (UnicodeDecodeError, json.JSONDecodeError):
             raise WalletAPIError("استجابة الخادم غير مفهومة") from None
 
+    def health(self):
+        return self._request("GET", "/health")
+
+    def capabilities(self):
+        return self._request("GET", "/capabilities")
+
     def register(self, phone: str, full_name: str, password: str):
-        return self._request("POST", "/auth/register", {
-            "phone": phone.strip(), "full_name": full_name.strip(), "password": password
-        })
+        return self._request(
+            "POST",
+            "/auth/register",
+            {
+                "phone": phone.strip(),
+                "full_name": full_name.strip(),
+                "password": password,
+            },
+        )
 
     def login(self, phone: str, password: str):
-        return self._request("POST", "/auth/login", {
-            "phone": phone.strip(), "password": password
-        })
+        return self._request(
+            "POST",
+            "/auth/login",
+            {"phone": phone.strip(), "password": password},
+        )
 
     def me(self, token: str):
         return self._request("GET", "/me", token=token)
