@@ -68,7 +68,24 @@ def main(page: ft.Page):
         init_db()
         page.title="SULTAN WALLET"; page.rtl=True; page.theme_mode=ft.ThemeMode.DARK; page.bgcolor="#0A0A0C"; page.padding=0
         NAVY="#0B1A2A"; GOLD="#D4AF37"; CARD="#14141A"; GREEN="#10B981"; RED="#EF4444"; WHITE="#FFFFFF"; MUTED="#9CA3AF"; LIGHT="#E5E7EB"
-        state={"user_id":None,"name":"","phone":"","rates":dict(RATES_FALLBACK),"rate_src":"محفوظ"}
+        API_BASE_URL = os.getenv("SULTAN_API_URL", "https://sultan-wallet-api.onrender.com").rstrip("/")
+        state={"user_id":None,"name":"","phone":"","token":None,"balances":{},"rates":dict(RATES_FALLBACK),"rate_src":"محفوظ"}
+        def api_request(path, method="GET", payload=None, authenticated=False):
+            data = json.dumps(payload).encode("utf-8") if payload is not None else None
+            headers = {"Accept": "application/json"}
+            if data is not None: headers["Content-Type"] = "application/json"
+            if authenticated and state.get("token"): headers["Authorization"] = "Bearer " + state["token"]
+            req = urllib.request.Request(API_BASE_URL + path, data=data, headers=headers, method=method)
+            try:
+                with urllib.request.urlopen(req, timeout=20) as response:
+                    raw = response.read().decode("utf-8")
+                    return json.loads(raw) if raw else {}
+            except urllib.error.HTTPError as exc:
+                try: detail = json.loads(exc.read().decode("utf-8")).get("detail", "HTTP " + str(exc.code))
+                except Exception: detail = "HTTP " + str(exc.code)
+                raise RuntimeError(str(detail))
+            except Exception as exc:
+                raise RuntimeError("تعذر الاتصال بالخادم. تحقق من الإنترنت وحالة API: " + str(exc))
         try:
             rates,src=get_rates(); state["rates"]=rates; state["rate_src"]=src
         except: pass
@@ -90,8 +107,7 @@ def main(page: ft.Page):
                 page.snack_bar=ft.SnackBar(ft.Text(m)); page.snack_bar.open=True; page.update()
             except: print(m)
         def bal(uid,cur):
-            try:
-                c=db(); r=c.execute("SELECT balance FROM accounts WHERE user_id=? AND currency=?",(uid,cur)).fetchone(); c.close(); return r["balance"] if r else 0.0
+            try: return float(state.get("balances", {}).get(cur, 0))
             except: return 0.0
         def ensure_accounts(uid):
             try:
@@ -140,33 +156,40 @@ def main(page: ft.Page):
         transfer_type=ft.Dropdown(label="نوع التحويل", options=[ft.dropdown.Option("داخلي - حساب سلطان"), ft.dropdown.Option("خارجي - بنك محلي"), ft.dropdown.Option("دولي - SWIFT")], value="داخلي - حساب سلطان")
         service_target=ft.TextField(label="رقم المستفيد *")
 
+        def complete_api_auth(token):
+            state["token"] = token
+            me = api_request("/me", authenticated=True)
+            wallet_data = api_request("/wallets", authenticated=True)
+            state.update(user_id=me["id"], name=me["full_name"], phone=me["phone"])
+            state["balances"] = {item["currency"]: float(item["balance"]) for item in wallet_data.get("wallets", [])}
+            show_home()
+
         def do_register(e):
-            if not phone_f.value or not name_f.value or not pass_f.value or not pin_f.value: snack("عبي كل الحقول"); return
-            if len(pass_f.value)<12: snack("كلمة السر يجب أن تكون 12 حرفاً على الأقل"); return
-            if len(pin_f.value)!=4 or not pin_f.value.isdigit(): snack("رمز PIN يجب أن يكون 4 أرقام"); return
-            h,s=hash_pw(pass_f.value); ph,_=hash_pw(pin_f.value)
+            phone = (phone_f.value or "").strip()
+            full_name = (name_f.value or "").strip()
+            password = pass_f.value or ""
+            if not phone or not full_name or not password:
+                snack("أدخل الاسم الكامل ورقم الجوال وكلمة المرور"); return
+            if len(password) < 12:
+                snack("كلمة المرور يجب أن تكون 12 حرفاً على الأقل"); return
             try:
-                c=db()
-                cur=c.execute("INSERT INTO users(phone,name,pass_hash,salt,pin_hash,created_at) VALUES(?,?,?,?,?,?)",(phone_f.value,name_f.value,h,s,ph,datetime.datetime.now().isoformat()))
-                uid=cur.lastrowid; c.commit(); c.close(); ensure_accounts(uid); state.update(user_id=uid,name=name_f.value,phone=phone_f.value); show_kyc()
+                result = api_request("/auth/register", "POST", {"phone": phone, "full_name": full_name, "password": password})
+                complete_api_auth(result["access_token"])
+                snack("تم إنشاء الحساب والاتصال بالخادم بنجاح")
             except Exception as ex:
-                print(ex)
-                snack("الرقم مسجل من قبل أو خطأ DB")
+                snack("فشل إنشاء الحساب: " + str(ex))
+
         def do_login(e):
+            phone = (phone_f.value or "").strip()
+            password = pass_f.value or ""
+            if not phone or not password:
+                snack("أدخل رقم الجوال وكلمة المرور"); return
             try:
-                c=db(); row=c.execute("SELECT * FROM users WHERE phone=?",(phone_f.value,)).fetchone(); c.close()
-                if not row: snack("الحساب غير موجود"); return
-                h,_=hash_pw(pass_f.value,row["salt"])
-                if h!=row["pass_hash"]:
-                    legacy=hashlib.sha256((row["salt"]+pass_f.value).encode()).hexdigest()
-                    if legacy!=row["pass_hash"]: snack("كلمة السر غير صحيحة"); return
-                    c=db(); c.execute("UPDATE users SET pass_hash=? WHERE id=?",(h,row["id"])); c.commit(); c.close()
-                state.update(user_id=row["id"],name=row["name"],phone=row["phone"]); ensure_accounts(row["id"])
-                k=kyc_status(row["id"])
-                if not k: show_kyc()
-                elif k["status"]!="approved": show_kyc_status()
-                else: show_home()
-            except Exception as ex: snack(f"خطأ دخول: {ex}"); print(ex)
+                result = api_request("/auth/login", "POST", {"phone": phone, "password": password})
+                complete_api_auth(result["access_token"])
+                snack("تم تسجيل الدخول بنجاح")
+            except Exception as ex:
+                snack("فشل تسجيل الدخول: " + str(ex))
         def do_kyc(e):
             snack("التحقق من الهوية غير متاح في النسخة التجريبية. لا تدخل بيانات هوية حقيقية.")
             return
