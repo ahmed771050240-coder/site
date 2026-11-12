@@ -242,6 +242,7 @@ def request_email_code(body: EmailCodeRequest, user: dict = Depends(current_user
 @app.post("/auth/email/verify-code")
 def verify_email_code(body: EmailCodeVerifyRequest, user: dict = Depends(current_user)):
     require_security_config()
+    incorrect_code = False
     with db_connection() as conn:
         row = conn.execute(
             """SELECT id, email, code_hash, expires_at, attempts, consumed_at
@@ -261,15 +262,18 @@ def verify_email_code(body: EmailCodeVerifyRequest, user: dict = Depends(current
                 "UPDATE email_verification_codes SET attempts = attempts + 1 WHERE id = %s",
                 (row[0],),
             )
-            raise HTTPException(status_code=400, detail="Incorrect verification code")
-        conn.execute(
-            "UPDATE email_verification_codes SET consumed_at = now() WHERE id = %s",
-            (row[0],),
-        )
-        conn.execute(
-            "UPDATE app_users SET email_verified = TRUE WHERE id = %s AND email = %s",
-            (user["id"], row[1]),
-        )
+            incorrect_code = True
+        else:
+            conn.execute(
+                "UPDATE email_verification_codes SET consumed_at = now() WHERE id = %s",
+                (row[0],),
+            )
+            conn.execute(
+                "UPDATE app_users SET email_verified = TRUE WHERE id = %s AND email = %s",
+                (user["id"], row[1]),
+            )
+    if incorrect_code:
+        raise HTTPException(status_code=400, detail="Incorrect verification code")
     return {"status": "verified", "email_verified": True}
 
 
