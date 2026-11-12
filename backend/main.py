@@ -177,3 +177,107 @@ def capabilities():
         "service_fulfillment": False,
         "note": "Enable money features only after licensed provider integration and independent security review.",
     }
+
+
+# Email verification (Microsoft Graph OAuth2; secrets live only in Render env vars)
+import hashlib
+import hmac
+import re
+import secrets
+from datetime import timedelta
+from backend.email_service import send_verification_email
+
+
+class EmailCodeRequest(BaseModel):
+    email: str = Field(min_length=6, max_length=254)
+
+
+class EmailCodeVerifyRequest(BaseModel):
+    code: str = Field(min_length=6, max_length=6, pattern=r"^[0-9]{6}$")
+
+
+def _email_code_digest(user_id: int, email: str, code: str) -> str:
+    material = f"{JWT_SECRET_KEY}:{user_id}:{email.lower()}:{code}".encode("utf-8")
+    return hashlib.sha256(material).hexdigest()
+
+
+@app.post("/auth/email/request-code")
+def request_email_code(body: EmailCodeRequest, user: dict = Depends(current_user)):
+    require_security_config()
+    email = body.email.strip().lower()
+    if not re.fullmatch(r"[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Za-z0-9-]+(?:\\.[A-Za-z0-9-]+)+", email):
+        raise HTTPException(status_code=422, detail="Invalid email address")
+    with db_connection() as conn:
+        recent = conn.execute(
+            """SELECT count(*) FROM email_verification_codes
+               WHERE user_id = %s AND created_at > now() - interval '1 hour'""",
+            (user["id"],),
+        ).fetchone()[0]
+        if recent >= 3:
+            raise HTTPException(status_code=429, detail="Too many codes requested; try again later")
+        conn.execute(
+            "UPDATE app_users SET email = %s, email_verified = FALSE WHERE id = %s",
+            (email, user["id"]),
+        )
+        conn.execute(
+            """UPDATE email_verification_codes SET consumed_at = now()
+               WHERE user_id = %s AND consumed_at IS NULL""",
+            (user["id"],),
+        )
+        code = f"{secrets.randbelow(1_000_000):06d}"
+        conn.execute(
+            """INSERT INTO email_verification_codes
+               (user_id, email, code_hash, expires_at)
+               VALUES (%s, %s, %s, now() + interval '10 minutes')""",
+            (user["id"], email, _email_code_digest(user["id"], email, code)),
+        )
+    try:
+        send_verification_email(email, code)
+    except RuntimeError as exc:
+        # Do not expose OAuth tokens, provider responses, or account credentials.
+        raise HTTPException(status_code=503, detail="Email delivery is not configured or failed") from exc
+    return {"status": "sent", "email": email, "expires_in": 600}
+
+
+@app.post("/auth/email/verify-code")
+def verify_email_code(body: EmailCodeVerifyRequest, user: dict = Depends(current_user)):
+    require_security_config()
+    with db_connection() as conn:
+        row = conn.execute(
+            """SELECT id, email, code_hash, expires_at, attempts, consumed_at
+               FROM email_verification_codes
+               WHERE user_id = %s ORDER BY id DESC LIMIT 1 FOR UPDATE""",
+            (user["id"],),
+        ).fetchone()
+        if row is None or row[5] is not None:
+            raise HTTPException(status_code=400, detail="No active verification code")
+        if row[4] >= 5:
+            raise HTTPException(status_code=429, detail="Too many incorrect attempts")
+        if row[3] <= datetime.now(timezone.utc):
+            raise HTTPException(status_code=400, detail="Verification code expired")
+        expected = _email_code_digest(user["id"], row[1], body.code)
+        if not hmac.compare_digest(row[2], expected):
+            conn.execute(
+                "UPDATE email_verification_codes SET attempts = attempts + 1 WHERE id = %s",
+                (row[0],),
+            )
+            raise HTTPException(status_code=400, detail="Incorrect verification code")
+        conn.execute(
+            "UPDATE email_verification_codes SET consumed_at = now() WHERE id = %s",
+            (row[0],),
+        )
+        conn.execute(
+            "UPDATE app_users SET email_verified = TRUE WHERE id = %s AND email = %s",
+            (user["id"], row[1]),
+        )
+    return {"status": "verified", "email_verified": True}
+
+
+@app.get("/auth/email/status")
+def email_verification_status(user: dict = Depends(current_user)):
+    with db_connection() as conn:
+        row = conn.execute(
+            "SELECT email, email_verified FROM app_users WHERE id = %s",
+            (user["id"],),
+        ).fetchone()
+    return {"email": row[0], "email_verified": bool(row[1])}
