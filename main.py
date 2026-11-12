@@ -1,6 +1,6 @@
 # SULTAN WALLET V4.1 - BANK - CRASH FIX
 import flet as ft
-import sqlite3, hashlib, secrets, json, urllib.request, datetime, os, sys
+import sqlite3, hashlib, secrets, json, urllib.request, urllib.error, datetime, os, sys
 
 CURRENCIES=["YER","SAR","USD","AED"]
 RATES_FALLBACK={"YER":1.0,"SAR":0.00066,"USD":0.0025,"AED":0.0092}
@@ -65,7 +65,6 @@ def get_rates():
 
 def main(page: ft.Page):
     try:
-        init_db()
         page.title="SULTAN WALLET"; page.rtl=True; page.theme_mode=ft.ThemeMode.DARK; page.bgcolor="#0A0A0C"; page.padding=0
         NAVY="#0B1A2A"; GOLD="#D4AF37"; CARD="#14141A"; GREEN="#10B981"; RED="#EF4444"; WHITE="#FFFFFF"; MUTED="#9CA3AF"; LIGHT="#E5E7EB"
         API_BASE_URL = os.getenv("SULTAN_API_URL", "https://sultan-wallet-api.onrender.com").rstrip("/")
