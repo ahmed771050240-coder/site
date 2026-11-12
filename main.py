@@ -74,6 +74,17 @@ def main(page: ft.Page):
         except: pass
         sel_cat={"cat":"شحن جوال - اليمن"}; sel_service={"item":None}
 
+
+        def action_button(label, **kwargs):
+            # Flet 1.0 removed ElevatedButton; use Button with ButtonStyle.
+            bgcolor = kwargs.pop("bgcolor", None)
+            color = kwargs.pop("color", None)
+            return ft.Button(
+                content=ft.Text(label),
+                style=ft.ButtonStyle(bgcolor=bgcolor, color=color),
+                **kwargs,
+            )
+
         def snack(m):
             try:
                 page.snack_bar=ft.SnackBar(ft.Text(m)); page.snack_bar.open=True; page.update()
@@ -231,8 +242,8 @@ def main(page: ft.Page):
                     ft.Text("YER • SAR • USD • AED", size=13, color=MUTED, text_align="center"),
                 ])),
                 name_f, phone_f, pass_f, pin_f,
-                ft.ElevatedButton("فتح حساب جديد", bgcolor=GOLD, color="black", width=400, on_click=do_register),
-                ft.ElevatedButton("دخول", bgcolor=CARD, color=WHITE, width=400, on_click=do_login),
+                action_button("فتح حساب جديد", bgcolor=GOLD, color="black", width=400, on_click=do_register),
+                action_button("دخول", bgcolor=CARD, color=WHITE, width=400, on_click=do_login),
                 ft.Text("نسخة تجريبية فقط — لا تدخل بيانات هوية حقيقية أو أموالاً حقيقية", size=11, color=MUTED, text_align="center"),
             ]))); page.update()
         def show_kyc():
@@ -242,7 +253,7 @@ def main(page: ft.Page):
                 kyc_name, kyc_id_type, kyc_id_num, kyc_dob,
                 ft.Text("مكان الميلاد", size=16, weight="bold", color=GOLD), kyc_birth_country, kyc_birth_gov, kyc_birth_city,
                 kyc_nationality, kyc_address,
-                ft.ElevatedButton("حفظ طلب تجريبي", bgcolor=GOLD, color="black", width=400, on_click=do_kyc),
+                action_button("حفظ طلب تجريبي", bgcolor=GOLD, color="black", width=400, on_click=do_kyc),
                 ft.TextButton("تخطي لاحقاً", on_click=lambda e: show_home()),
             ], scroll=ft.ScrollMode.AUTO))); page.update()
         def show_kyc_status():
@@ -251,8 +262,8 @@ def main(page: ft.Page):
                 header("حالة الحساب"),
                 ft.Text(txt, size=16, color=GOLD),
                 ft.Text(f"{k['full_name'] if k else ''}\n{k['id_type'] if k else ''} - {k['id_number'] if k else ''}\nالميلاد: {k['dob'] if k else ''}", size=13, color=WHITE),
-                ft.ElevatedButton("دخول للواجهة التجريبية", bgcolor=CARD, color=WHITE, width=400, on_click=lambda e: show_home()),
-                ft.ElevatedButton("تعديل البيانات", bgcolor=CARD, color=WHITE, width=400, on_click=lambda e: show_kyc()),
+                action_button("دخول للواجهة التجريبية", bgcolor=CARD, color=WHITE, width=400, on_click=lambda e: show_home()),
+                action_button("تعديل البيانات", bgcolor=CARD, color=WHITE, width=400, on_click=lambda e: show_kyc()),
                 ft.TextButton("خروج", on_click=lambda e: show_auth()),
             ]))); page.update()
         def show_home():
@@ -267,12 +278,12 @@ def main(page: ft.Page):
                 ft.Text("حساباتي - اسحب يمين / يسار", size=14, weight="bold", color=GOLD),
                 home_cards,
                 ft.Text("خدمات بنكية", size=16, weight="bold", color=GOLD),
-                ft.Row([ft.ElevatedButton("💸 تحويل", bgcolor=GOLD, color="black", width=110, on_click=lambda e: show_transfer()),
-                        ft.ElevatedButton("📱 شحن", bgcolor=CARD, color=WHITE, width=110, on_click=lambda e: show_services_cat("شحن جوال - اليمن")),
-                        ft.ElevatedButton("🎮 ألعاب", bgcolor=CARD, color=WHITE, width=110, on_click=lambda e: show_services_cat("ألعاب وشحن عملات"))]),
-                ft.Row([ft.ElevatedButton("💳 بطاقات", bgcolor=CARD, color=WHITE, width=110, on_click=lambda e: show_services_cat("بطاقات واشتراكات")),
-                        ft.ElevatedButton("🌍 دولي", bgcolor=CARD, color=WHITE, width=110, on_click=lambda e: show_services_cat("شحن جوال - دول أخرى")),
-                        ft.ElevatedButton("🪪 حسابي", bgcolor=CARD, color=WHITE, width=110, on_click=lambda e: show_kyc_status())]),
+                ft.Row([action_button("💸 تحويل", bgcolor=GOLD, color="black", width=110, on_click=lambda e: show_transfer()),
+                        action_button("📱 شحن", bgcolor=CARD, color=WHITE, width=110, on_click=lambda e: show_services_cat("شحن جوال - اليمن")),
+                        action_button("🎮 ألعاب", bgcolor=CARD, color=WHITE, width=110, on_click=lambda e: show_services_cat("ألعاب وشحن عملات"))]),
+                ft.Row([action_button("💳 بطاقات", bgcolor=CARD, color=WHITE, width=110, on_click=lambda e: show_services_cat("بطاقات واشتراكات")),
+                        action_button("🌍 دولي", bgcolor=CARD, color=WHITE, width=110, on_click=lambda e: show_services_cat("شحن جوال - دول أخرى")),
+                        action_button("🪪 حسابي", bgcolor=CARD, color=WHITE, width=110, on_click=lambda e: show_kyc_status())]),
                 ft.Text("كشف الحساب", size=16, weight="bold", color=GOLD), history_label,
                 ft.Text("طلبات الخدمات", size=16, weight="bold", color=GOLD), orders_label,
                 ft.Text("الدعم: قناة التواصل غير مفعلة بعد — أضف بيانات الدعم الرسمية قبل النشر", size=11, color=MUTED),
@@ -281,8 +292,8 @@ def main(page: ft.Page):
             page.controls.clear(); page.add(ft.Container(padding=20, content=ft.Column([
                 header("التحويلات — غير مفعلة"),
                 transfer_type, to_f, amt_f, cur_dd,
-                ft.ElevatedButton("تأكيد التحويل", bgcolor=GOLD, color="black", width=400, on_click=do_transfer),
-                ft.ElevatedButton("رجوع", bgcolor=CARD, color=WHITE, width=400, on_click=lambda e: show_home()),
+                action_button("تأكيد التحويل", bgcolor=GOLD, color="black", width=400, on_click=do_transfer),
+                action_button("رجوع", bgcolor=CARD, color=WHITE, width=400, on_click=lambda e: show_home()),
                 ft.Text("التحويلات غير مفعلة في هذه النسخة التجريبية", size=11, color=MUTED),
             ]))); page.update()
         def show_receipt(ref, amt, cur, fee, to_phone, status):
@@ -297,7 +308,7 @@ def main(page: ft.Page):
                     ft.Text(f"الحالة: {status}", size=14, color=WHITE),
                     ft.Text(f"التاريخ: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M')}", size=12, color=MUTED),
                 ])),
-                ft.ElevatedButton("رجوع للرئيسية", bgcolor=GOLD, color="black", width=400, on_click=lambda e: show_home()),
+                action_button("رجوع للرئيسية", bgcolor=GOLD, color="black", width=400, on_click=lambda e: show_home()),
             ]))); page.update()
         def show_services_cat(cat):
             sel_cat["cat"]=cat; show_services()
@@ -305,7 +316,7 @@ def main(page: ft.Page):
             def on_cat(cat): sel_cat["cat"]=cat; show_services()
             def on_pick(item): sel_service["item"]=item; show_services()
             cats=list(SERVICES.keys())
-            cat_row=ft.Row(scroll=ft.ScrollMode.AUTO, controls=[ft.ElevatedButton(c, bgcolor=GOLD if c==sel_cat["cat"] else CARD, color="black" if c==sel_cat["cat"] else WHITE, on_click=lambda e, c=c: on_cat(c)) for c in cats])
+            cat_row=ft.Row(scroll=ft.ScrollMode.AUTO, controls=[action_button(c, bgcolor=GOLD if c==sel_cat["cat"] else CARD, color="black" if c==sel_cat["cat"] else WHITE, on_click=lambda e, c=c: on_cat(c)) for c in cats])
             items=SERVICES[sel_cat["cat"]]
             cards=[]
             for it in items:
@@ -321,8 +332,8 @@ def main(page: ft.Page):
                 ft.Column(cards, scroll=ft.ScrollMode.AUTO, height=320),
                 ft.Text(sel_txt, size=14, weight="bold", color=GOLD),
                 service_target,
-                ft.ElevatedButton("تأكيد الدفع من الحساب", bgcolor=GOLD, color="black", width=400, on_click=buy_service),
-                ft.ElevatedButton("رجوع", bgcolor=CARD, color=WHITE, width=400, on_click=lambda e: show_home()),
+                action_button("تأكيد الدفع من الحساب", bgcolor=GOLD, color="black", width=400, on_click=buy_service),
+                action_button("رجوع", bgcolor=CARD, color=WHITE, width=400, on_click=lambda e: show_home()),
             ], scroll=ft.ScrollMode.AUTO))); page.update()
         def buy_service(e):
             snack("شراء الخدمات متوقف حتى ربط مزود شحن حقيقي والتحقق من الدفع.")
