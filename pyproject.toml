@@ -1,6 +1,10 @@
+[build-system]
+requires = ["setuptools>=75"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "sultan-wallet"
-version = "1.1.0"
+version = "1.1.1"
 description = "SULTAN WALLET"
 requires-python = ">=3.10"
 dependencies = ["flet==1.0.5", "requests>=2.32,<3.0"]
@@ -8,9 +12,26 @@ dependencies = ["flet==1.0.5", "requests>=2.32,<3.0"]
 [dependency-groups]
 dev = ["flet-cli==1.0.5"]
 
+[tool.setuptools]
+py-modules = ["main", "wallet_engine", "auth_server", "server", "market_data", "auth", "login_patch"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["sultan_wallet_reown*", "flutter*"]
+namespaces = true
+
+[tool.setuptools.package-data]
+"flutter.sultan_wallet_reown" = ["**/*"]
+
 [tool.flet]
 assets_dir = "assets"
 org = "org.sultan"
 product = "SULTAN WALLET"
 company = "SULTAN WALLET"
 copyright = "Copyright 2026 SULTAN WALLET"
+
+[tool.flet.deep_linking]
+scheme = "sultanwallet"
+
+[tool.flet.android.queries]
+packages = ["io.metamask", "com.wallet.crypto.trustapp"]
