@@ -2,6 +2,8 @@
 import flet as ft
 from sultan_wallet_reown import SultanWalletReown
 import sqlite3, hashlib, secrets, json, urllib.request, datetime, os, sys
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
+from sultan_wallet_reown import SultanWalletReown
 
 CURRENCIES=["YER","SAR","USD","AED"]
 RATES_FALLBACK={"YER":1.0,"SAR":0.00066,"USD":0.0025,"AED":0.0092}
