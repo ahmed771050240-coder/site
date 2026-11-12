@@ -31,13 +31,9 @@ def post_form(url: str, data: dict) -> dict:
     try:
         with urllib.request.urlopen(request, timeout=30) as response:
             return json.loads(response.read().decode("utf-8"))
-    except Exception as exc:
-        if getattr(exc, "read", None):
-            try:
-                print(exc.read().decode("utf-8"))
-            except Exception:
-                pass
-        raise
+    except urllib.error.HTTPError as exc:
+        details = exc.read().decode("utf-8", errors="replace")
+        raise RuntimeError(details) from exc
 
 
 def main() -> None:
@@ -70,12 +66,7 @@ def main() -> None:
                 return
             raise SystemExit("No refresh token returned. Confirm offline_access consent.")
         except Exception as exc:
-            body = ""
-            if getattr(exc, "read", None):
-                try:
-                    body = exc.read().decode("utf-8")
-                except Exception:
-                    pass
+            body = str(exc)
             if "authorization_pending" in body:
                 continue
             if "slow_down" in body:
