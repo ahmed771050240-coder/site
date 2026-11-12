@@ -1,5 +1,6 @@
 # SULTAN WALLET V4.1 - BANK - CRASH FIX
 import flet as ft
+from sultan_wallet_reown import SultanWalletReown
 import sqlite3, hashlib, secrets, json, urllib.request, datetime, os, sys
 
 CURRENCIES=["YER","SAR","USD","AED"]
@@ -78,6 +79,32 @@ def main(page: ft.Page):
             try:
                 page.snack_bar=ft.SnackBar(ft.Text(m)); page.snack_bar.open=True; page.update()
             except: print(m)
+        wallet_state={"address":"","wallet_name":"","chain_id":""}
+        def on_wallet_connected(e):
+            try:
+                payload=json.loads(e.data) if isinstance(e.data,str) and e.data else (e.data or {})
+                address=payload.get("address","")
+                if address and address != wallet_state["address"]:
+                    wallet_state.update(address=address,wallet_name=payload.get("wallet_name","محفظة متصلة"),chain_id=payload.get("chain_id",""))
+                    snack("تم ربط المحفظة الرقمية بنجاح")
+            except Exception as ex:
+                print(f"wallet event error: {ex}")
+        def on_wallet_disconnected(e):
+            wallet_state.update(address="",wallet_name="",chain_id="")
+            snack("تم فصل المحفظة الرقمية")
+        def on_wallet_error(e):
+            try:
+                payload=json.loads(e.data) if isinstance(e.data,str) and e.data else (e.data or {})
+                snack(payload.get("message","تعذر ربط المحفظة"))
+            except:
+                snack("تعذر ربط المحفظة")
+        wallet_connector=SultanWalletReown(
+            project_id="d49f5ad010ca1d1451ec6eff23e61e0e",
+            width=400,
+            on_wallet_connected=on_wallet_connected,
+            on_wallet_disconnected=on_wallet_disconnected,
+            on_wallet_error=on_wallet_error,
+        )
         def bal(uid,cur):
             try:
                 c=db(); r=c.execute("SELECT balance FROM accounts WHERE user_id=? AND currency=?",(uid,cur)).fetchone(); c.close(); return r["balance"] if r else 0.0
@@ -259,6 +286,8 @@ def main(page: ft.Page):
             total=total_balance_yer()
             page.controls.clear(); page.add(ft.Container(padding=16, content=ft.Column([
                 header(f"أهلاً {state['name']}"),
+                wallet_connector,
+
                 ft.Container(bgcolor=NAVY, padding=16, border_radius=16, content=ft.Column([
                     ft.Text("إجمالي الأرصدة (بالريال اليمني تقريباً)", size=12, color=MUTED),
                     ft.Text(f"{total:,.2f} ر.ي", size=26, weight="bold", color=WHITE),
