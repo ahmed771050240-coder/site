@@ -47,8 +47,7 @@ def main(page: ft.Page):
                 ft.SnackBar(content=ft.Text(str(message)), bgcolor=PANEL_ALT)
             )
         except Exception:
-            status.value = str(message)
-            page.update()
+            print(str(message))
 
     def load_account(token):
         profile = api.me(token)
@@ -153,7 +152,6 @@ def main(page: ft.Page):
         page.add(
             ft.Container(
                 expand=True,
-                alignment=ft.alignment.center,
                 padding=22,
                 content=ft.Container(
                     width=520,
@@ -224,7 +222,7 @@ def main(page: ft.Page):
     def title_bar(title):
         profile = state.get("profile") or {}
         return ft.Container(
-            padding=ft.padding.only(left=16, right=16, top=14, bottom=14),
+            padding=16,
             bgcolor=PANEL,
             border_radius=18,
             content=ft.Row(
@@ -452,7 +450,7 @@ def main(page: ft.Page):
             scroll=ft.ScrollMode.AUTO,
             controls=[
                 title_bar("سجل العمليات"),
-                ft.Icon(ft.Icons.RECEIPT_LONG, size=42, color=GOLD),
+                ft.Icon(ft.Icons.RECEIPT, size=42, color=GOLD),
                 ft.Text(
                     "لا توجد عمليات مسجلة",
                     size=19,
@@ -579,10 +577,10 @@ def main(page: ft.Page):
         labels = ["الرئيسية", "المحافظ", "التحويلات", "السجل", "حسابي"]
         icons = [
             ft.Icons.HOME_OUTLINED,
-            ft.Icons.ACCOUNT_BALANCE_WALLET_OUTLINED,
-            ft.Icons.SEND_OUTLINED,
+            ft.Icons.ACCOUNT_BALANCE_WALLET,
+            ft.Icons.SEND,
             ft.Icons.HISTORY,
-            ft.Icons.PERSON_OUTLINE,
+            ft.Icons.PERSON,
         ]
         page.controls.clear()
         page.appbar = None
