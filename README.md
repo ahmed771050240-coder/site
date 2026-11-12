@@ -22,7 +22,7 @@ This repository is a software prototype and backend foundation. It is **not a ba
 
 ## Build Android APK
 
-The GitHub Actions workflow builds the Flet APK for arm64-v8a. Run it from Actions or push a change to `main`. Download the APK from the successful workflow's Artifacts section.
+The GitHub Actions workflow validates the application and utility Python sources, then builds the Flet APK for arm64-v8a. Download the APK from the successful workflow's Artifacts section.
 
 ## Run the backend
 
