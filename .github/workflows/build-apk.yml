@@ -1,38 +1,57 @@
 name: SULTAN WALLET APK Build
+
 on:
   push:
     branches: [ main ]
   pull_request:
     branches: [ main ]
   workflow_dispatch:
+
 permissions:
   contents: read
+
 jobs:
   build:
     runs-on: ubuntu-22.04
+    timeout-minutes: 45
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - uses: astral-sh/setup-uv@v6
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
         with:
           enable-cache: true
-      - name: Validate Python syntax
-        run: python -m compileall -q main.py backend
-      - name: Build APK
+
+      - name: Install project dependencies
+        run: uv sync --group dev
+
+      - name: Validate source files
         run: |
-          ls -la
-          cat pyproject.toml || echo "no pyproject - create minimal"
-          if [ ! -f pyproject.toml ]; then
-            echo '[project]
-name = "sultan-wallet"
-version = "4.1.0"
-dependencies = ["flet"]' > pyproject.toml
+          test -f main.py
+          test -f pyproject.toml
+          uv run python -m compileall -q main.py auth_server.py wallet_engine.py
+
+      - name: Build Android APK
+        run: uv run flet build apk --arch arm64-v8a
+
+      - name: Verify APK output
+        shell: bash
+        run: |
+          APK="$(find build/apk -type f -name '*.apk' -print -quit 2>/dev/null || true)"
+          if [[ -z "$APK" ]]; then
+            echo "::error::Android APK build completed but produced no .apk file under build/apk/"
+            echo "Contents of build directory:"
+            find build -maxdepth 4 -type f -print 2>/dev/null || true
+            exit 1
           fi
-          uv sync --group dev || uv sync
-          uv run flet build apk --arch arm64-v8a || flet build apk
-          find build -type f -name "*.apk" -print
+          echo "APK produced: $APK"
+
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
