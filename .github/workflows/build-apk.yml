@@ -27,7 +27,7 @@ jobs:
           bundled-python-version: "3.13"
           build-number: ${{ github.run_number }}
           extra-args: >-
-            --arch arm64-v8a
+            --arch arm64-v8a\n            --include-packages flet_webview
             --exclude auth_server.py
             --exclude wallet_auth.db
             --exclude auth_secret.key
