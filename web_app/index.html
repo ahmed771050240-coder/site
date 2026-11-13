@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#080d19"><title>SULTAN WALLET</title>
+<style>
+:root{color-scheme:dark;--bg:#080d19;--panel:#111b2e;--gold:#d4af37;--muted:#9aa8bd;--line:#26344d;--green:#22c55e;--red:#fb7185}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at top,#17243b 0,#080d19 55%);font-family:Tahoma,Arial,sans-serif;color:#f8fafc;min-height:100vh}
+.wrap{max-width:760px;margin:auto;padding:22px 16px 44px}.brand{display:flex;align-items:center;gap:12px;margin:10px 0 24px}.logo{width:48px;height:48px;border-radius:16px;background:linear-gradient(135deg,#f6df8b,#a77b18);display:grid;place-items:center;color:#101827;font-weight:900;font-size:22px}.brand h1{font-size:20px;margin:0}.brand small{color:var(--muted)}
+.panel{background:#111b2eeF;border:1px solid var(--line);border-radius:22px;padding:20px;margin:14px 0;box-shadow:0 14px 40px #0004}.title{font-size:19px;margin:0 0 14px}.muted{color:var(--muted);font-size:13px;line-height:1.7}
+input,select,button{width:100%;padding:14px;border-radius:12px;border:1px solid var(--line);background:#0b1425;color:#fff;font:inherit;margin:7px 0}button{background:linear-gradient(120deg,#e6c65f,#b98c24);color:#111827;font-weight:800;border:0;cursor:pointer}button.secondary{background:#1c2a42;color:#fff;border:1px solid var(--line)}button:disabled{opacity:.55}
+.row{display:flex;gap:10px}.row>*{flex:1;min-width:0}.hidden{display:none!important}.balance{font-size:28px;font-weight:800;color:#f5d778;margin:8px 0}.currency{display:flex;justify-content:space-between;padding:13px 0;border-bottom:1px solid var(--line)}.currency:last-child{border:0}
+.notice{padding:12px;border-radius:12px;background:#3b2d12;color:#f7df9a;font-size:13px;line-height:1.7;margin:12px 0}.error{background:#451b29;color:#fecdd3}.success{background:#123824;color:#bbf7d0}
+.tabs{display:flex;gap:8px;flex-wrap:wrap}.tabs button{width:auto;flex:1}.tx{padding:12px 0;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;gap:10px;font-size:14px}.tx:last-child{border:0}
+footer{text-align:center;color:#73829a;font-size:12px;padding:20px}
+</style></head>
+<body><main class="wrap">
+<header class="brand"><div class="logo">S</div><div><h1>SULTAN WALLET</h1><small>محفظتك الرقمية — نسخة متصلة بالخادم</small></div></header>
+<div id="message" class="notice hidden" role="status"></div>
+<section id="auth">
+ <div class="panel"><h2 class="title">تسجيل الدخول</h2><form id="loginForm"><input id="loginPhone" inputmode="tel" autocomplete="tel" placeholder="رقم الهاتف الدولي" required><input id="loginPassword" type="password" autocomplete="current-password" placeholder="كلمة المرور" required><button>دخول آمن</button></form>
+ <div class="muted">ليس لديك حساب؟ أنشئ حساباً جديداً بالأسفل.</div></div>
+ <div class="panel"><h2 class="title">إنشاء حساب</h2><form id="registerForm"><input id="regPhone" inputmode="tel" autocomplete="tel" placeholder="رقم الهاتف الدولي" required><input id="regPassword" type="password" minlength="8" autocomplete="new-password" placeholder="كلمة مرور (8 أحرف على الأقل)" required><button class="secondary">إنشاء الحساب</button></form><p class="muted">تسجيل الحساب لا يعني توثيق رقم الهاتف؛ التحقق عبر SMS غير مفعّل حالياً.</p></div>
+</section>
+<section id="dashboard" class="hidden">
+ <div class="panel"><div class="row" style="align-items:center"><div style="flex:2"><div class="muted">مرحباً بك</div><h2 id="accountPhone" class="title"></h2></div><button id="logout" class="secondary">خروج</button></div>
+ <div class="notice">هذه محفظة داخلية تجريبية على مستوى دفتر الأستاذ. لا تدعم إيداعاً أو سحباً نقدياً أو أموالاً حقيقية حالياً.</div></div>
+ <div class="panel"><h2 class="title">أرصدتك</h2><div id="balances"><p class="muted">جارٍ تحميل الأرصدة…</p></div><button id="refresh" class="secondary">تحديث البيانات</button></div>
+ <div class="panel"><h2 class="title">تحويل داخلي</h2><form id="transferForm"><input id="recipient" inputmode="tel" placeholder="رقم هاتف المستلم المسجل" required><div class="row"><input id="amount" inputmode="decimal" placeholder="المبلغ" required><select id="currency"><option>YER</option><option>SAR</option><option>AED</option><option>USD</option></select></div><input id="description" maxlength="200" placeholder="وصف التحويل (اختياري)"><button>تأكيد التحويل الداخلي</button></form></div>
+ <div class="panel"><h2 class="title">آخر العمليات</h2><div id="transactions" class="muted">لا توجد عمليات بعد.</div></div>
+</section>
+<footer>SULTAN WALLET • الاتصال الآمن عبر HTTPS • © 2026</footer>
+</main>
+<script>
+const $=id=>document.getElementById(id), API=location.origin;
+function msg(t,kind=''){const el=$('message');el.textContent=t;el.className='notice '+kind;el.classList.remove('hidden')}
+function clearMsg(){$('message').classList.add('hidden')}
+function token(){return localStorage.getItem('sw_session')}
+async function api(path,opts={}){const headers={'Accept':'application/json',...(opts.body?{'Content-Type':'application/json'}:{}),...(token()?{'Authorization':'Bearer '+token()}:{})};let r;try{r=await fetch(API+path,{...opts,headers})}catch(e){throw Error('تعذر الاتصال بالخادم. تحقق من الإنترنت.')}let data={};try{data=await r.json()}catch{}if(!r.ok)throw Error(data.detail||'حدث خطأ في الطلب');return data}
+$('loginForm').addEventListener('submit',async e=>{e.preventDefault();clearMsg();try{const d=await api('/login',{method:'POST',body:JSON.stringify({phone:$('loginPhone').value.trim(),password:$('loginPassword').value})});localStorage.setItem('sw_session',d.access_token);await loadDashboard()}catch(x){msg(x.message,'error')}});
+$('registerForm').addEventListener('submit',async e=>{e.preventDefault();clearMsg();try{const d=await api('/register',{method:'POST',body:JSON.stringify({phone:$('regPhone').value.trim(),password:$('regPassword').value})});msg((d.message||'تم إنشاء الحساب')+' — سجّل الدخول الآن.','success')}catch(x){msg(x.message,'error')}});
+$('logout').onclick=()=>{localStorage.removeItem('sw_session');$('dashboard').classList.add('hidden');$('auth').classList.remove('hidden');msg('تم تسجيل الخروج','success')};
+$('refresh').onclick=()=>loadDashboard();
+async function loadDashboard(){try{const me=await api('/me');$('accountPhone').textContent=me.phone||'حساب SULTAN';$('auth').classList.add('hidden');$('dashboard').classList.remove('hidden');await Promise.all([loadWallet(),loadTransactions()])}catch(e){localStorage.removeItem('sw_session');$('dashboard').classList.add('hidden');$('auth').classList.remove('hidden');msg(e.message,'error')}}
+async function loadWallet(){const d=await api('/wallet');$('balances').innerHTML='';(d.accounts||[]).forEach(a=>{const row=document.createElement('div');row.className='currency';const name=document.createElement('b');name.textContent=a.currency;const value=document.createElement('span');value.textContent=Number(a.balance).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})+' '+a.currency;row.append(name,value);$('balances').append(row)})}
+async function loadTransactions(){const d=await api('/wallet/transactions?limit=30');const box=$('transactions');box.innerHTML='';if(!d.transactions?.length){box.textContent='لا توجد عمليات مسجلة.';return}d.transactions.forEach(t=>{const row=document.createElement('div');row.className='tx';const left=document.createElement('span');left.textContent=(t.type==='sent'?'تحويل صادر':'تحويل وارد')+' · '+(t.description||'تحويل داخلي');const right=document.createElement('b');right.textContent=(t.type==='sent'?'-':'+')+t.amount+' '+t.currency;row.append(left,right);box.append(row)})}
+$('transferForm').addEventListener('submit',async e=>{e.preventDefault();clearMsg();const button=e.submitter;button.disabled=true;try{const d=await api('/wallet/transfers',{method:'POST',body:JSON.stringify({recipient_phone:$('recipient').value.trim(),amount:$('amount').value.trim(),currency:$('currency').value,idempotency_key:crypto.randomUUID(),description:$('description').value.trim()||'تحويل داخلي'})});msg('تم تسجيل التحويل الداخلي: '+d.reference+' — لا يمثل حركة أموال خارجية.','success');$('transferForm').reset();await Promise.all([loadWallet(),loadTransactions()])}catch(x){msg(x.message,'error')}finally{button.disabled=false}});
+if(token())loadDashboard();
+</script></body></html>
