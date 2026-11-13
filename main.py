@@ -255,19 +255,40 @@ def main(page: ft.Page):
 
         def header(title):
             return ft.Container(bgcolor=NAVY, padding=16, content=ft.Row([ft.Text("SULTAN WALLET", size=20, weight="bold", color=GOLD), ft.Text(title, size=14, color=WHITE)]))
-        def show_auth():
+        def show_auth(register_mode=False):
+            # Keep login immediately visible; registration fields appear only when requested.
             page.controls.clear()
-            page.add(ft.Container(padding=20, content=ft.Column([
+            auth_controls = [
                 ft.Container(bgcolor=NAVY, padding=20, border_radius=18, content=ft.Column([
-                    ft.Text("SULTAN WALLET", size=32, weight="bold", color=GOLD, text_align="center"),
-                    ft.Text("واجهة محفظة تجريبية متعددة العملات", size=14, color=WHITE, text_align="center"),
+                    ft.Text("SULTAN WALLET", size=30, weight="bold", color=GOLD, text_align="center"),
+                    ft.Text("محفظتك الرقمية متعددة العملات", size=14, color=WHITE, text_align="center"),
                     ft.Text("YER • SAR • USD • AED", size=13, color=MUTED, text_align="center"),
                 ])),
-                name_f, phone_f, pass_f, pin_f,
-                action_button("فتح حساب جديد", bgcolor=GOLD, color="black", width=400, on_click=do_register),
-                action_button("دخول", bgcolor=CARD, color=WHITE, width=400, on_click=do_login),
-                ft.Text("نسخة تجريبية فقط — لا تدخل بيانات هوية حقيقية أو أموالاً حقيقية", size=11, color=MUTED, text_align="center"),
-            ]))); page.update()
+            ]
+            if register_mode:
+                auth_controls.extend([
+                    ft.Text("إنشاء حساب جديد", size=20, weight="bold", color=GOLD),
+                    name_f, phone_f, pass_f,
+                    action_button("إنشاء الحساب", bgcolor=GOLD, color="black", width=400, on_click=do_register),
+                    ft.TextButton("لدي حساب بالفعل — تسجيل الدخول", on_click=lambda e: show_auth(False)),
+                ])
+            else:
+                auth_controls.extend([
+                    ft.Text("تسجيل الدخول", size=20, weight="bold", color=GOLD),
+                    phone_f, pass_f,
+                    action_button("دخول", bgcolor=GOLD, color="black", width=400, on_click=do_login),
+                    ft.TextButton("مستخدم جديد؟ إنشاء حساب", on_click=lambda e: show_auth(True)),
+                ])
+            auth_controls.append(
+                ft.Text("نسخة تجريبية — لا تودع أموالاً حقيقية. التحويلات والمدفوعات غير مفعلة.",
+                        size=11, color=MUTED, text_align="center")
+            )
+            page.add(ft.Container(
+                expand=True, padding=20,
+                content=ft.Column(auth_controls, scroll=ft.ScrollMode.AUTO, expand=True,
+                                  horizontal_alignment=ft.CrossAxisAlignment.CENTER)
+            ))
+            page.update()
         def show_kyc():
             page.controls.clear(); page.add(ft.Container(padding=20, content=ft.Column([
                 header("التحقق من الهوية - KYC"),
