@@ -768,3 +768,5 @@ def go_to(screen_number):
     return lambda e: update_body(e.page)
 if __name__ == "__main__":
     ft.run(main)
+
+# Trigger Android APK build from commercial-build; no runtime behavior change.
