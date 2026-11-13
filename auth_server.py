@@ -9,7 +9,7 @@ import secrets
 import sqlite3
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, Depends
+from fastapi import FastAPI, HTTPException, Depends\nfrom fastapi.responses import FileResponse
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel, Field
 
@@ -104,6 +104,12 @@ class RegisterRequest(BaseModel):
 class LoginRequest(BaseModel):
     phone: str = Field(min_length=7, max_length=20)
     password: str = Field(min_length=1, max_length=128)
+
+
+@app.get("/app")
+def wallet_web_app():
+    # Serve the remote UI from this same HTTPS origin as the wallet API.
+    return FileResponse(BASE / "web_app" / "index.html", media_type="text/html")
 
 
 @app.get("/health")
