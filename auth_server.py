@@ -9,7 +9,8 @@ import secrets
 import sqlite3
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, Depends\nfrom fastapi.responses import FileResponse
+from fastapi import FastAPI, HTTPException, Depends
+from fastapi.responses import FileResponse
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel, Field
 
