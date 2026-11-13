@@ -28,7 +28,6 @@ jobs:
           build-number: ${{ github.run_number }}
           extra-args: >-
             --arch arm64-v8a
-            --include-packages flet_webview
             --exclude auth_server.py
             --exclude wallet_auth.db
             --exclude auth_secret.key
