@@ -20,9 +20,11 @@ This repository is a software prototype and backend foundation. It is **not a ba
 - `requirements-server.txt` — backend dependencies.
 - `.github/workflows/build-apk.yml` — Android APK build.
 
-## Build Android APK
+## Android compatibility build
 
-The GitHub Actions workflow validates the application and utility Python sources, then builds the Flet APK for arm64-v8a. Download the APK from the successful workflow's Artifacts section.
+The GitHub Actions workflow builds one universal APK using Flet's default Android architecture set, rather than forcing `arm64-v8a` only. This is intended to include the supported `arm64-v8a`, `armeabi-v7a`, and `x86_64` ABIs in one APK, subject to the pinned Flet toolchain and all native dependencies being available for those ABIs.
+
+A successful build still does not guarantee installation on every Android device. Android OS version, device requirements, signing key, and native dependency compatibility also matter. Download the APK from the successful workflow's Artifacts section and test it on representative 64-bit and 32-bit ARM devices before distribution.
 
 ## Run the backend
 
@@ -40,6 +42,6 @@ Before accepting real money: licensed provider contracts, KYC/AML vendor and ope
 
 A target sale price of USD 10,000 is a commercial goal, not a guaranteed valuation. Buyers will expect a working build, test evidence, documentation, clear IP ownership, and proof of provider/licensing readiness.
 
-
 ## Build status
-The Android APK is produced by the GitHub Actions workflow after a push to `main` or a manual workflow run. A successful run publishes the APK as the `SULTAN-WALLET-APK` artifact.
+
+The Android APK is produced by the GitHub Actions workflow after a push to `main` or a manual workflow run. A successful run publishes the artifact named `SULTAN-WALLET-APK-ALL-ABIS`.
